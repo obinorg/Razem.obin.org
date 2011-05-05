@@ -1,0 +1,233 @@
+/*Here are a number of predefined table styles for your use.
+* Some of these could probably be optimized a bit.
+*/
+
+/*Black & White styles */
+
+table.tables-grid {
+  border-collapse: collapse;
+}
+
+table.tables-grid td {
+  border: black solid 1px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-elegant {
+  border-collapse: collapse;
+  border: black double 3px;
+}
+
+table.tables-elegant td {
+  border: black solid 1px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-elegant tr.firstrow td {
+  border-bottom: black solid 2px;
+}
+
+table.tables-professional {
+  border-collapse: collapse;
+  border: black solid 2px;
+}
+
+table.tables-professional td {
+  border: black solid 1px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-professional tr.firstrow td {
+  font-weight: bold;
+  background: black;
+  color: white;
+
+}
+
+/* 3D styles.  These use '#ddd' for the background, '#eee' for highlight and '#888' for shadow */
+
+table.tables-3d-effects-1 {
+  background: #ddd;
+  border-collapse: collapse;
+}
+
+table.tables-3d-effects-1 td{
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-3d-effects-1 tr.firstrow td {
+  border-bottom: #888 solid 1px;
+}
+
+table.tables-3d-effects-1 td.firstcol {
+  border-right: #888 solid 1px;
+}
+
+table.tables-3d-effects-1 tr.firstrow td.firstcol {
+  border: none;
+}
+
+table.tables-3d-effects-2 {
+  background: #ddd;
+  border-collapse: collapse;
+}
+
+table.tables-3d-effects-2 td{
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-3d-effects-2 tr.firstrow td,
+table.tables-3d-effects-2 tr.oddrow td {
+  border-bottom: #888 solid 1px;
+}
+
+table.tables-3d-effects-2 td.firstcol {
+  border-right: #888 solid 1px;
+}
+
+table.tables-3d-effects-2 tr.evenrow td {
+  border-bottom: #eee solid 1px;
+}
+
+
+table.tables-3d-effects-3 {
+  background: #ddd;
+  border-collapse: collapse;
+}
+
+table.tables-3d-effects-3 td{
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
+table.tables-3d-effects-3 tr.evenrow td {
+  border-bottom: #eee solid 1px;
+}
+
+table.tables-3d-effects-3 tr.oddrow td,
+table.tables-3d-effects-3 tr.firstrow td {
+  border-bottom: #888 solid 1px;
+}
+
+table.tables-3d-effects-3 tr.firstrow td.evencol,
+table.tables-3d-effects-3 tr.oddrow td.evencol {
+  background: #bbb;
+}
+
+table.tables-3d-effects-3 tr.evenrow td.evencol {
+  border-bottom: #eee solid 1px;
+  background: #bbb;
+}
+
+table.tables-3d-effects-3 tr.evenrow td.firstcol,
+table.tables-3d-effects-3 tr.oddrow td.firstcol,
+table.tables-3d-effects-3 tr.firstrow td.firstcol {
+  background: white;
+  border: none;
+  border-right: #888 solid 1px;
+}
+
+/* simple splashes of colour styles.  For no particular reason these use green as the highlight colour
+* you can change the highlight to match your site
+*/
+
+table.tables-simple {
+  border-top: green solid 3px;
+  border-bottom: green solid 3px;
+  border-collapse: collapse;
+}
+
+table.tables-simple td{
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-simple tr.firstrow td {
+  border-bottom: green solid 1px;
+}
+
+
+/*colour styles.
+* Again these colours are coordinated for green.
+* These use xxx as a light green xxx as a mid green and xxx as a dark green.
+*/
+
+table.tables-colorful {
+  background: #cec;
+  border-collapse: collapse;
+  border-bottom: solid black 2px;
+}
+
+table.tables-colorful td{
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-colorful tr.firstrow td{
+  background: #484;
+  border-bottom: solid black 2px;
+  color: white;
+  font-weight: bold;
+}
+
+table.tables-colorful-columns {
+  background: #cec;
+  border-collapse: collapse;
+  border-bottom: solid black 2px;
+}
+
+table.tables-colorful-columns td{
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+table.tables-colorful-columns tr.firstrow td{
+  background: #484;
+  border-bottom: solid black 2px;
+  color: white;
+  font-weight: bold;
+}
+
+table.tables-colorful-columns tr.firstrow td.firstcol,
+table.tables-colorful-columns tr.firstrow td.oddcol{
+  background: #8B8;
+  border-bottom: solid black 2px;
+  color: white;
+  font-weight: bold;
+}
+
+
+table.tables-colorful-columns tr.evenrow td.evencol,
+table.tables-colorful-columns tr.oddrow td.evencol{
+  background: #8B8;
+}
+
+table.tables-colorful-list {
+  background: #cec;
+  border-collapse: collapse;
+  border-bottom: solid black 2px;
+}
+
+table.tables-colorful-list td{
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+table.tables-colorful-list tr.firstrow td{
+  background: #484;
+  border-bottom: solid black 2px;
+  color: white;
+  font-weight: bold;
+}
+
+
+table.tables-colorful-list tr.oddrow td{
+  background: #8B8;
+}
+
+

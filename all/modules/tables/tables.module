@@ -1,0 +1,203 @@
+<?php
+// $Id: tables.module,v 1.14 2009/09/10 06:10:27 webgeer Exp $
+
+/**
+ * @file
+ * Impliments a filter to insert a table into a node using a table macro.
+ *
+ * This module is a filter module that converts table macros into nodes.  The formattin of the macro is
+ * starts as [table=class where the optional "=class" portion will create a class for the table.
+ * then each cell is divided by a "|" and each row is separated by a \n, the macro ends with a "]".
+ *
+ */
+
+
+function tables_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#tables':
+      return t('<p>This filter module makes it easy and safe insert tables into the text of a node. '.
+               '<p>A table always starts with "[table".  To set a custom class for the table next put in "=class" '.
+               'there must not be any space between the "[table" and the "=".  You can set the class to be what '.
+               'ever you want.  A few useful classes are already included in the style sheet provided. '.
+               'Next you separate the cells by a "|" and separate the rows by a new line.  Cells can span multiple '.
+               'columns or rows simply by inserting a "&" to merge the cell with the cell to the left and a "^" to '.
+               'merge with the cell above. Currently, the only way to insert a literal "]" into the table is to use "'.
+               htmlentities('&#93;').'". If a "!" is the first charecter for a cell, the cell is set to be a header cell.');
+      break;
+  }
+}
+
+/**
+ *
+ * Impliments the search and process the macro.
+ *
+ * @param $intext
+ * The node string
+ *
+ * @return
+ * FALSE if no table macros
+ * an array with element [0] being an array of macro strings and element [1] being an array of strings with the html
+ * formatting.
+ */
+
+function _tables_prepare($intext) {
+  $out=FALSE;
+  $tableexp = '/\[table([^\[\]]+ )* \] /x';
+  preg_match_all($tableexp, $intext, $matches);
+  $i=0;
+
+  while (isset($matches[1][$i])) {
+    $out[0][$i] = $matches[0][$i];
+    $tablein = $matches[1][$i];
+    $rowspan=$colspan=array();    
+    if ($tablein[0] == '=') {  //class is set
+      preg_match('/^=([a-zA-Z0-9-]*)/',$tablein, $cmatches);
+      $classlen = strlen($cmatches[0]);
+      $class=$cmatches[1];
+      $tablein=trim(substr($tablein,$classlen));
+    }
+    else {
+      $class=variable_get('tables_default_style', 'tables-elegant');
+    }
+    $rows=explode("\n", $tablein);
+    $j=0;
+    $num_rows=count($rows);
+    $num_cols=0;
+    $cells = array();
+
+    while (isset($rows[$j])) {
+      $cells[$j]=explode('|', $rows[$j]);
+      $cells[$j]=array_map('trim', $cells[$j]);
+      if (count($cells[$j])>$num_cols) {
+        $num_cols=count($cells[$j]);
+      }
+      $j++;
+    }
+    for ($j=$num_rows-1; $j>=0; $j--) {   // find any cols rows that span  row=j, col=k
+      for ($k=$num_cols-1; $k>=0; $k--) {
+        if ($cells[$j][$k]=='{') {
+          if (isset($colspan[$j][$k]) && $k>0) {
+            $colspan[$j][$k-1] = $colspan[$j][$k]+1;
+          }
+          elseif ($k>0) {
+            $colspan[$j][$k-1]=2;
+          }
+        }
+        elseif ($cells[$j][$k]=='^') {
+          if (isset($rowspan[$j][$k]) && $j>0) {
+            $rowspan[$j-1][$k] = $rowspan[$j][$k]+1;
+          }
+          elseif ($j>0) {
+            $rowspan[$j-1][$k]=2;
+          }
+        }
+      }
+    }
+    if (isset($class) && strtolower($class)=='theme') {
+      //create a table themed using Drupal Themed table function
+       $outtext=theme_table(array_shift($cells), $cells);
+    }
+    else {
+      if (isset($class) && strlen($class)>0) {
+        $outtext= '<table class="'.$class.'">'."\n";
+      }
+      else {
+        $outtext= '<table>'."\n";
+      }
+      for ($j=0; $j<$num_rows; $j++) {   // create the output
+        if ($j==0) $outtext .= '<tr class="firstrow">';
+        elseif ($j % 2 == 0) $outtext.= '<tr class="oddrow">';
+        else $outtext.= '<tr class="evenrow">';
+        for ($k=0; $k<$num_cols; $k++) {
+          if ($cells[$j][$k][0]=='!') {
+            $cell_type='th';
+            $cells[$j][$k]=substr($cells[$j][$k],1);
+          }
+          else {
+            $cell_type='td';
+          }
+
+          if ($cells[$j][$k]!='^' && $cells[$j][$k]!='{') {
+            $outtext.="<$cell_type";
+            if (isset($rowspan[$j][$k])) $outtext .= ' ROWSPAN='.$rowspan[$j][$k];
+            if (isset($colspan[$j][$k])) $outtext .= ' COLSPAN='.$colspan[$j][$k];
+            if ($k==0) $outtext .= ' class="firstcol">';
+            elseif ($k % 2 == 0) $outtext.= ' class="oddcol">';
+            else $outtext.= ' class="evencol">';
+            if (strlen($cells[$j][$k])>0) $outtext .=$cells[$j][$k]."</$cell_type>";
+            else $outtext .= "&nbsp;</$cell_type>";
+          }
+        }
+        $outtext .= "</tr>\n";
+      }
+      $outtext .= "</table>\n ";
+    }
+    $out[1][$i]=$outtext;
+    $i++;
+  } // endwhile process macro
+  return $out;
+}
+
+/**
+ *  Implementation of hook_filter
+ */
+
+function tables_filter($op, $delta = 0, $format = -1, $text = '') {
+  switch ($op) {
+    case 'list':
+      return (array(0 => t('Tables filter')));
+
+    case 'name':
+      return t('tables filter');
+
+    case 'description':
+      return t('converts [table ...] macros into HTML tables.');
+      
+    case 'process':
+      $tables=_tables_prepare($text);   //returns an array of $tables[0] = table macro $table[1]= table html
+      if ($tables) {                    // there are table macros in this node
+        return str_replace($tables[0], $tables[1], $text);
+      }
+      else {
+        return $text;
+      }
+
+    case 'prepare':
+      return $text;
+    
+    case 'settings':
+      return tables_filter_settings_form();  
+
+  }
+}
+
+function tables_filter_tips($delta, $format, $long = false) {
+  return t('Insert an html table from [table | cell 2 ...]. Use "|" between cells and a new line between rows.');
+}
+
+
+function tables_init() {
+  $css = variable_get('tables_css', drupal_get_path('module','tables').'/tables.css');
+  drupal_add_css($css);
+}
+
+
+
+
+function tables_filter_settings_form() {
+
+  $form['tables_filter'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Tables filter'),
+    '#collapsible' => TRUE,
+  );
+  $form['tables_filter']['tables_default_style'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default style'),
+    '#default_value' => variable_get('tables_default_style', 'tables-elegant'),
+    '#size' => 70,
+    '#maxlength' => 255,
+    '#description' => t("Set the default style sheet to use if no style sheet is set in the specific table. "),
+  );
+  return $form;
+}

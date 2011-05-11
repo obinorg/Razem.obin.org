@@ -1,0 +1,10 @@
+; $Id: security_review.info,v 1.1 2009/11/04 01:02:40 coltrane Exp $
+name = Security Review
+description = "Site security and configuration review module."
+core = 6.x
+; Information added by drupal.org packaging script on 2009-12-08
+version = "6.x-1.0"
+core = "6.x"
+project = "security_review"
+datestamp = "1260311170"
+

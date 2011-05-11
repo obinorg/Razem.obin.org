@@ -1,0 +1,95 @@
+<?php
+// $Id: uploadpath.module,v 1.1.2.5.2.1 2008/09/08 08:20:02 davidwhthomas Exp $
+/**
+ * @file
+ * Upload Path module; allows admins to specify a sub directory for uploaded files.
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function uploadpath_menu() {
+    $items['admin/settings/uploadpath'] = array(
+      'title' => 'File upload paths',
+      'description' => 'Configure a prefix to apply to the path of uploaded files.',
+      'access callback' => 'user_access',
+      'access arguments' => array('administer site configuration'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uploadpath_admin_settings'),
+      'type' => MENU_NORMAL_ITEM,
+      'file' => 'uploadpath.admin.inc',
+    );
+  return $items;
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function uploadpath_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'insert':
+    case 'update':
+    if( !in_array($node->type, variable_get('uploadpath_excluded_node_types',array())) ){
+      if(isset($node->files) && user_access('upload files')) {
+        foreach ($node->files as $key => $file) {
+          // Only rewrite the path on new files to be saved
+          if ($file['new'] && !$file['remove']){
+            //get the token path pattern
+            $pattern = variable_get('uploadpath_prefix_'.$node->type, false);
+            if(!$pattern){ 
+              //default pattern
+              $pattern = variable_get('uploadpath_prefix', '[type]/[yyyy]/[mm]');
+            }
+            if(variable_get('uploadpath_clean_filenames', false) && $node->title){
+              //convert filename into meaningful semantic name based on node title or file desc :-)
+              //e.g: 'DC100_1.jpg' becomes 'the_quick_brown_fox_a3de.jpg'
+              if($file['description'] && strlen($file['description']) > 3){
+                $filename_root = $file['description']; //base filename on file desc
+              }else{
+                $filename_root = $node->title; //base filename on node title
+              }
+              //drupal_set_message($filename_root);
+              //get path info of file
+              $file_info = pathinfo($file['filename']);
+              /*crop lowercase node title to max
+              replace anything except numbers and letters with underscore
+              add 10 digit unique id and file extension*/
+              $file_name = substr($filename_root, 0, 50);
+              //replace anything except numbers and letters with an underscore
+              $file_name = preg_replace("/([^a-z0-9])/", '_', strtolower($file_name));
+              //replace multiple underscores with a single one
+              $file_name = preg_replace("/_+/", '_', $file_name);
+              $file_name .= '_'. substr(uniqid(rand(), true),0,5). '.'. $file_info['extension'];
+              // apply new, prefixed file name by token replacing the path pattern
+              $file_path = token_replace($pattern . '/', 'node', $node);
+              $file_name = $file_path . $file_name;
+            }else{
+              // apply new, prefixed file name by token replacing the path pattern
+              $file_name = str_replace(array(' ', "\n", "\t"), '_', token_replace($pattern . '/', 'node', $node)) . $file['filename'];
+            }
+            // SECURITY NOTE:
+            // Tokens include user supplied information and could provide an attack vector.
+            // The current method of creating directories prevents the use of .. or other malicious
+            // paths, but future developers should keep this in mind when modifying the following code	
+            // Create the directory if it doesn't exist yet.
+            $dirs = explode('/', dirname($file_name));
+            $directory = file_directory_path();
+            while (count($dirs)) {
+              $directory .= '/' . array_shift($dirs);
+              file_check_directory($directory, FILE_CREATE_DIRECTORY);
+            }
+            //move file to new subfolder
+            if (file_move($file['filepath'], $file_name, FILE_EXISTS_RENAME)) {
+              //update node file array with new path, if needed
+              $node->files[$key]['filepath'] = $file_name; 
+              // update file record in database
+              db_query("UPDATE {files} SET filepath = '%s' WHERE fid = %d", $file['filepath'], $file['fid']);
+            }
+            //drupal_set_message('<pre>AFTER:'.print_r($node->files[$key],1).'</pre>');
+          }
+        }
+      }
+    }
+    break;
+  }
+}

@@ -1,0 +1,36 @@
+<?php
+
+/**
+ * @file
+ * Advanced aggregation css compression module.
+ *
+ */
+
+/**
+ * Implement hook_advagg_css_alter.
+ *
+ * TODO have set_cfg be configurable from GUI.
+ */
+function advagg_css_compress_advagg_css_alter(&$contents, $files, $bundle_md5) {
+  // Initialize CSSTidy.
+  $filename = drupal_get_path('module', 'advagg_css_compress') . '/csstidy/class.csstidy.inc';
+  include_once($filename);
+  $css = new csstidy();
+
+  // Set configuration.
+  $css->set_cfg('preserve_css', TRUE);
+  $css->set_cfg('remove_last_;', TRUE);
+  $css->set_cfg('merge_selectors', TRUE);
+  $css->set_cfg('optimise_shorthands', TRUE);
+  $css->set_cfg('silent', TRUE);
+  $css->set_cfg('compress_colors', TRUE);
+  $css->set_cfg('sort_selectors', FALSE);
+  $css->set_cfg('sort_properties', FALSE);
+  $css->set_cfg('discard_invalid_properties', FALSE);
+  $css->set_cfg('timestamp', FALSE);
+  $css->load_template("highest_compression");
+
+  // Compress CSS.
+  $css->parse($contents);
+  $contents = $css->print->plain();
+}

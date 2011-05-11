@@ -1,0 +1,245 @@
+<?php
+// $Id: piwik_reports.module,v 1.1.2.10 2009/06/16 11:05:49 hass Exp $
+
+/**
+ * @file
+ * Drupal Module: Piwik Reports
+ * Sponsored by IO1, http://www.io1.biz
+ * All code is released under the GNU General Public License.
+ */
+
+function piwik_reports_help($path, $arg) {
+  global $user;
+
+  switch ($path) {
+    case (arg(0) == 'admin' && arg(1) == 'reports' && arg(2) == 'piwik_reports'):
+      if ($user->uid && empty($user->piwik['piwik_token_auth'])) {
+        drupal_set_message(t('You need to configure your <em>Piwik authentication string</em> on the <a href="@user-edit">My account</a> page.', array('@user-edit' => url('user/' . $user->uid . '/edit'))), 'warning', FALSE);
+      }
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function piwik_reports_menu() {
+  // Reports
+  $items['admin/reports/piwik_reports'] = array(
+    'title' => 'Piwik reports',
+    'page callback' => 'piwik_reports_menu_block_page',
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'description' => 'Reports on your website visitors, your popular pages, the search engines keywords they used... and so much more.',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/reports/piwik_reports/visitors'] = array(
+    'title' => 'Visitors',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_overview'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/reports/piwik_reports/visitors/overview'] = array(
+    'title' => 'Overview',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_overview'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 1,
+    'type' => MENU_DEFAULT_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/visitors/settings'] = array(
+    'title' => 'Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_settings'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 2,
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/visitors/times'] = array(
+    'title' => 'Times',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_times'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 3,
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/visitors/locations'] = array(
+    'title' => 'Locations provider',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_locations'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 4,
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/actions'] = array(
+    'title' => 'Actions',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_pages'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 2,
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/reports/piwik_reports/actions/pages'] = array(
+    'title' => 'Pages',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_pages'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 1,
+    'type' => MENU_DEFAULT_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/actions/outlinks'] = array(
+    'title' => 'Outlinks',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_outlinks'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 2,
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/actions/downloads'] = array(
+    'title' => 'Downloads',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_downloads'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 3,
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/referers'] = array(
+    'title' => 'Referers',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_evolution'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 3,
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/reports/piwik_reports/referers/evolution'] = array(
+    'title' => 'Evolution',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_evolution'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 1,
+    'type' => MENU_DEFAULT_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/referers/search'] = array(
+    'title' => 'Search engines & keywords',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_search'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 2,
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/reports/piwik_reports/referers/websites'] = array(
+    'title' => 'Websites',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_reports_websites'),
+    'access arguments' => array('access site reports'),
+    'file' => 'piwik_reports.pages.inc',
+    'weight' => 3,
+    'type' => MENU_LOCAL_TASK
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function piwik_reports_theme() {
+  return array(
+    'visitors_overview' => array(
+      'template' => 'visitors-overview',
+      'arguments' => array(
+        'piwik_url' => NULL,
+        'data1_url' => NULL,
+        'widget1_url' => NULL,
+        'period' => NULL,
+      ),
+    ),
+    'visitors_settings' => array(
+      'template' => 'visitors-settings',
+      'arguments' => array(
+        'piwik_url' => NULL,
+        'data1_url' => NULL,
+        'data2_url' => NULL,
+        'data3_url' => NULL,
+        'data4_url' => NULL,
+        'widget1_url' => NULL,
+        'widget2_url' => NULL,
+        'widget3_url' => NULL,
+        'widget4_url' => NULL,
+      ),
+    ),
+    'visitors_times' => array(
+      'template' => 'visitors-times',
+      'arguments' => array(
+        'piwik_url' => NULL,
+        'data1_url' => NULL,
+      ),
+    ),
+    'visitors_locations' => array(
+      'template' => 'visitors-locations',
+      'arguments' => array(
+        'piwik_url' => NULL,
+        'data1_url' => NULL,
+      ),
+    ),
+    'referers_evolution' => array(
+      'template' => 'referers-evolution',
+      'arguments' => array(
+        'piwik_url' => NULL,
+        'data1_url' => NULL,
+      ),
+    ),
+    'referers_search' => array(
+      'template' => 'referers-search',
+      'arguments' => array(
+        'piwik_url' => NULL,
+        'data1_url' => NULL,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function piwik_reports_form_alter(&$form, $form_state, $form_id) {
+  // Extend the form in "user/{userid}/edit".
+  if ('user_profile_form' == $form_id && user_access('access site reports')) {
+    global $user;
+
+    // Make sure the fieldset is also visible if user do not have permission
+    // on the form field "Enable user tracking" in the main piwik module.
+    // Additional the fieldset shouldn't be overriden by this hook if still active.
+    if (empty($form['piwik'])) {
+      $form['piwik'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Piwik configuration'),
+        '#weight' => 3,
+        '#collapsible' => TRUE,
+        '#tree' => TRUE
+      );
+    }
+
+    $form['piwik']['piwik_token_auth'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Piwik authentication string'),
+      '#default_value' => (!empty($user->piwik['piwik_token_auth'])) ? $user->piwik['piwik_token_auth'] : 'anonymous',
+      '#size' => 40,
+      '#maxlength' => 40,
+      '#description' => t('Click the <strong>Settings</strong> link in your Piwik account, then the <strong>Users</strong> tab and copy and paste your personal <strong>token_auth</strong> value into this field. If anonymous users have view permissions in Piwik you can set this value to <strong>anonymous</strong>.'),
+    );
+  }
+}

@@ -1,0 +1,420 @@
+# $Id: piwik.ja.po,v 1.1.2.1 2009/06/15 22:32:08 hass Exp $
+# -----------------------------------------------------------------------------
+# Japanese translation of Drupal (modules-piwik)
+#
+# Copyright (c) 2008       Drupal Japan  ( http://drupal.jp/ )  /
+#                          Takafumi      ( jp.drupal@imagine **reverse order**)
+#
+# Generated from file:
+#  piwik.admin.inc,v 1.1.2.9 2008/05/31 09:30:47 hass
+#  piwik.module,v 1.1.2.7 2008/05/17 22:27:19 hass
+#  piwik_reports.module,v 1.1.2.3 2008/05/16 22:21:21 hass
+#  piwik.info,v 1.1.2.4 2008/09/14 15:52:20 hass
+#  piwik_reports.info,v 1.1.2.2 2008/09/14 15:52:20 hass
+#  referers-search.tpl.php,v 1.1.2.3 2008/05/16 22:21:21 hass
+#  visitors-overview.tpl.php,v 1.1.2.3 2008/05/16 22:21:21 hass
+#  visitors-settings.tpl.php,v 1.1.2.4 2008/05/17 10:14:17 hass
+#  visitors-times.tpl.php,v 1.1.2.3 2008/05/16 22:21:21 hass
+#  piwik_reports.pages.inc,v 1.1.2.4 2008/05/18 19:02:59 hass
+#  modules/piwik_reports/piwik_reports.js: n/a
+#
+# -----------------------------------------------------------------------------
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2008-09-15 15:32+0900\n"
+"Last-Translator: Takafumi <jp.drupal@imagine **reverse order**>\n"
+"Language-Team: Drupal Japan\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n!=1);\n"
+
+#: piwik.admin.inc:15
+msgid "General settings"
+msgstr "全般の設定"
+
+#: piwik.admin.inc:21
+msgid "Piwik site ID"
+msgstr "PiwikサイトID"
+
+#: piwik.admin.inc:26
+msgid "The user account number is unique to the websites domain."
+msgstr "ウェブサイトドメインに固有のアカウント番号を入力します。"
+
+#: piwik.admin.inc:30
+msgid "Piwik HTTP URL"
+msgstr "Piwik HTTP URL"
+
+#: piwik.admin.inc:35
+msgid "The URL to your Piwik base directory. Example: \"http://www.example.com/piwik\"."
+msgstr "PiwikのベースディレクトリへのURLを入力します。 例： \"http://www.example.com/piwik\""
+
+#: piwik.admin.inc:39
+msgid "Piwik HTTPS URL"
+msgstr "Piwik HTTPS URL"
+
+#: piwik.admin.inc:43
+msgid "The URL to your Piwik base directory with SSL certificate installed. Required if you track a SSL enabled website. Example: \"https://www.example.com/piwik\"."
+msgstr "SSL証明書がインストールされた、PiwikのベースディレクトリへのURLを入力します。 SSLが有効なウェブサイトをトラックする場合に必要となります。 例： \"https://www.example.com/piwik\""
+
+#: piwik.admin.inc:47
+msgid "Piwik authentication string"
+msgstr "Piwik認証文字列"
+
+#: piwik.admin.inc:53
+msgid "Required to request the reports data without being logged into Piwik. You can get this token in the Piwik Manage Users admin area."
+msgstr "Piwikにログインせずにリポートデータを要求する場合に必要となります。 このトークンは、Piwikの管理エリアにある「ユーザ管理」で取得することができます。"
+
+#: piwik.admin.inc:59
+msgid "User specific tracking settings"
+msgstr "ユーザ固有のトラッキング設定"
+
+#: piwik.admin.inc:64
+msgid "Custom tracking settings"
+msgstr "カスタムトラッキング設定"
+
+#: piwik.admin.inc:66
+msgid "Users cannot control whether they are tracked or not."
+msgstr "ユーザはトラックされるかどうかをコントロールできない"
+
+#: piwik.admin.inc:67
+msgid "Track users by default, but let individual users to opt out."
+msgstr "デフォルトでユーザをトラックするが、各ユーザが拒否することもできる"
+
+#: piwik.admin.inc:68
+msgid "Do not track users by default, but let individual users to opt in."
+msgstr "デフォルトでユーザをトラックしないが、各ユーザが許可することもできる"
+
+#: piwik.admin.inc:70
+msgid "Allow individual users to customize the visibility of tracking in their account settings. Only users with %permission permission are allowed to set their own preference."
+msgstr "各ユーザごとのアカウント設定で、トラックの表示をカスタマイズできるかどうかを指定してください。 「%permission」権限を持ったユーザのみが設定を行えます。"
+
+#: piwik.admin.inc:70 piwik.module:22
+msgid "opt-in or out of tracking"
+msgstr "トラッキングの許可・許否"
+
+#: piwik.admin.inc:77
+msgid "Role specific tracking settings"
+msgstr "ロール固有のトラッキング設定"
+
+#: piwik.admin.inc:88
+msgid "Add tracking for specific roles"
+msgstr "トラッキングを加える特定ロール"
+
+#: piwik.admin.inc:91
+msgid "Add tracking only for the selected role(s). If none of the roles are selected, all users will be tracked. If a user has any of the roles checked, that user will be tracked."
+msgstr "トラッキングを特定のロールに限定したい場合、それらのロール名にチェックを入れてください。 どのロールも選択しない場合、すべてのユーザがトラックされます。 "
+
+#: piwik.admin.inc:97
+msgid "Page specific tracking settings"
+msgstr "ページ固有のトラッキング設定"
+
+#: piwik.admin.inc:112
+msgid "Add to every page except the listed pages."
+msgstr "リストに記載したページ以外のすべてのページに加える"
+
+#: piwik.admin.inc:112
+msgid "Add to the listed pages only."
+msgstr "リストに記載したページにのみ加える"
+
+#: piwik.admin.inc:113
+msgid "Enter one page per line as Drupal paths. The '*' character is a wildcard. Example paths are %blog for the blog page and %blog-wildcard for every personal blog. %front is the front page."
+msgstr "１行に１ベージとして、Drupalパスを入力してください。 <b>*</b> はワイルドカードとして使えます。 例えばブログページのパスを指定するには <b>%blog</b>、ユーザ別のブログは <b>%blog-wildcard</b> と入力してください。 また、フロントページを指定するには <b>%front</b> と入力してください。<br />"
+
+#: piwik.admin.inc:116
+msgid "Add if the following PHP code returns <code>TRUE</code> (PHP-mode, experts only)."
+msgstr "以下のPHPコードが <code>TRUE</code> を返したら加える（PHPモード － PHPに精通した方専用)"
+
+#: piwik.admin.inc:117
+msgid "If the PHP-mode is chosen, enter PHP code between %php. Note that executing incorrect PHP-code can break your Drupal site."
+msgstr "PHPモードを選択した場合、<b>%php</b> で囲まれたPHPコード（※ return や print 等の命令を使用して結果を返す必要があります）を記入してください。 ただし、間違ったPHPコードを実行するとサイトを壊す可能性もありますので、十分に注意を払うようにしてください。"
+
+#: piwik.admin.inc:121
+msgid "Add tracking to specific pages"
+msgstr "トラッキングを加える特定ページ"
+
+#: piwik.admin.inc:127 modules/piwik_reports/piwik_reports.module:79
+msgid "Pages"
+msgstr "ページ"
+
+#: piwik.admin.inc:169
+msgid "Link tracking settings"
+msgstr "リンクトラッキングの設定"
+
+#: piwik.admin.inc:175
+msgid "Track download and outgoing links"
+msgstr "ダウンロードと外部リンクのトラック"
+
+#: piwik.admin.inc:177
+msgid "Enables tracking of clicks on download and outgoing links."
+msgstr "ここにチェックを入れると、ダウンロードと外部リンクのクリックをトラックすることができます。"
+
+#: piwik.admin.inc:201
+msgid "File extensions to track"
+msgstr "トラックするファイル拡張子"
+
+#: piwik.admin.inc:203
+msgid "A pipe separated list of file extensions that should be tracked when clicked with regular expression support. Example: !extensions"
+msgstr "クリックされた際にトラックするファイルの拡張子を、パイプ(|)で区切って指定してください。 正規表現もサポートされます。 例： !extensions"
+
+#: piwik.admin.inc:209
+msgid "Advanced settings"
+msgstr "拡張設定"
+
+#: piwik.admin.inc:216
+msgid "Cache tracking code file locally"
+msgstr "トラッキングコードをローカルにキャッシュ"
+
+#: piwik.admin.inc:217
+msgid "If checked, the tracking code file is retrieved from Piwik and cached locally. It is updated daily from your Piwik servers to ensure updates to tracking code are reflected in the local copy."
+msgstr "ここにチェックを入れると、トラッキングコードファイルはPiwikから取り出され、ローカルにキャッシュされます。 トラッキングコードの更新がローカルのコピーに反映されるように、キャッシュはPiwikサーバから毎日更新されます。"
+
+#: piwik.admin.inc:222
+msgid "<a href=\"!url\">Public file transfers</a> must be enabled to allow local caching."
+msgstr "ローカルにキャッシュするには、<a href=\"!url\">ダウンロードの方法を「パブリック」</a>にする必要があります。"
+
+#: piwik.admin.inc:241
+msgid "Custom JavaScript code"
+msgstr "カスタムJavaScriptコード"
+
+#: piwik.admin.inc:244
+msgid "You can add custom Piwik <a href=\"!snippets\">code snippets</a> here. These will be added to every page that Piwik appears on. <strong>Do not include the &lt;script&gt; tags</strong>, and always end your code with a semicolon (;)."
+msgstr "ここに、カスタムのPiwik<a href=\"!snippets\">コードスニペット</a>を追加することができます。 これらはPiwikが現れる、すべてのページに追加されます。 <strong>&lt;script&gt; タグは含めず</strong>、 コードの終端には常にセミコロン (;) を付加してください。"
+
+#: piwik.admin.inc:249
+msgid "JavaScript scope"
+msgstr "JavaScriptのスコープ"
+
+#: piwik.admin.inc:250
+msgid "<strong>Warning:</strong> Adding the external JavaScript files to the footer region is recommended for performance reasons."
+msgstr "<strong>警告：</strong> パフォーマンスの理由から、外部JavaScriptファイルはフッタ領域に追加することを推奨します。"
+
+#: piwik.admin.inc:252
+msgid "Footer"
+msgstr "フッタ"
+
+#: piwik.admin.inc:253
+msgid "Header"
+msgstr "ヘッダ"
+
+#: piwik.admin.inc:263
+msgid "A valid Piwik site ID is an integer only."
+msgstr "有効なPiwikサイトIDは整数のみです。"
+
+#: piwik.admin.inc:269;276
+msgid "The validation of \"@url\" failed with error \"@error\" (HTTP code @code)."
+msgstr "\"@url\" の検証が \"@error\" で失敗しました。（HTTPコード @code）"
+
+#: piwik.admin.inc:282
+msgid "Do not include the &lt;script&gt; tags in this field."
+msgstr "このフィールドに &lt;script&gt; タグを含めないでください。"
+
+#: piwik.module:17
+msgid "<a href=\"@pk_url\">Piwik - Web analytics</a> is an open source (GPL license) web analytics software. It gives interesting reports on your website visitors, your popular pages, the search engines keywords they used, the language they speak... and so much more. Piwik aims to be an open source alternative to Google Analytics."
+msgstr "<a href=\"@pk_url\">Piwik - Web analytics</a>はオープンソース（GPLライセンス）のウェブ解析ソフトウェアであり、サイト訪問者に関する興味深いリポート（人気のあるページ、使用した検索エンジンのキーワード、話す言語、等々）を与えます。 Piwikは、Google Analyticsに対するオープンソースでの代替物を目指しています。"
+
+#: piwik.module:177
+msgid "Piwik configuration"
+msgstr "Piwikの設定"
+
+#: piwik.module:184
+msgid "User tracking"
+msgstr "ユーザのトラッキング"
+
+#: piwik.module:205
+msgid "Piwik module"
+msgstr "Piwikモジュール"
+
+#: piwik.module:206
+msgid "Piwik module has not been configured yet. Please configure its settings from the <a href=\"@url\">Piwik settings page</a>."
+msgstr "Piwikモジュールはまだ設定されていません。 <a href=\"@url\">Piwikの設定ページ</a>で設定を行ってください。"
+
+#: piwik.module:208
+msgid "Not configured"
+msgstr "設定されていません"
+
+#: piwik.module:22
+msgid "administer piwik"
+msgstr "Piwikの管理"
+
+#: piwik.module:22
+msgid "use PHP for tracking visibility"
+msgstr "トラッキングの表示にPHPを使用"
+
+#: piwik.module:27
+msgid "Piwik"
+msgstr "Piwik"
+
+#: piwik.module:28
+msgid "Configure the settings used to generate your Piwik tracking code."
+msgstr "Piwikトラッキングコードを生成するための設定を行います。"
+
+#: piwik.module:0
+msgid "piwik"
+msgstr "Piwik"
+
+#: piwik.info:0
+msgid "Piwik - Web analytics"
+msgstr "Piwik - ウェブ解析"
+
+#: piwik.info:0
+msgid "Adds Piwik javascript tracking code to all your site's pages."
+msgstr "サイトの全ページにPiwikのjavascriptトラッキングコードを追加します。"
+
+#: piwik.info:0 modules/piwik_reports/piwik_reports.info:0
+msgid "Statistics"
+msgstr "統計"
+
+#: modules/piwik_reports/referers-search.tpl.php:4
+msgid "Search engines"
+msgstr "検索エンジン"
+
+#: modules/piwik_reports/referers-search.tpl.php:14
+msgid "Keywords"
+msgstr "キーワード"
+
+#: modules/piwik_reports/visitors-overview.tpl.php:4
+msgid "Overview of the last @period"
+msgstr "ここ @period の概観"
+
+#: modules/piwik_reports/visitors-settings.tpl.php:4
+msgid "Browser families"
+msgstr "ブラウザファミリー"
+
+# Piwik本体の翻訳に準拠（他のモジュールで利用されるようなら変更）
+#: modules/piwik_reports/visitors-settings.tpl.php:14
+msgid "Configurations"
+msgstr "システム構成"
+
+#: modules/piwik_reports/visitors-settings.tpl.php:24
+msgid "Operating systems"
+msgstr "OS"
+
+#: modules/piwik_reports/visitors-settings.tpl.php:34
+msgid "Screen resolutions"
+msgstr "画面解像度"
+
+#: modules/piwik_reports/visitors-times.tpl.php:4
+msgid "Visit per local time"
+msgstr "ローカルタイム単位のビジット"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:20
+msgid "You do not have any reports."
+msgstr "リポートはありません。"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:29
+msgid "Today"
+msgstr "今日"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:30
+msgid "Yesterday"
+msgstr "昨日"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:31
+msgid "Last week"
+msgstr "ここ1週間"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:32
+msgid "Last month"
+msgstr "ここ1ヶ月"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:33
+msgid "Last year"
+msgstr "ここ1年"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:39
+msgid "Filter time period"
+msgstr "期間の絞り込み"
+
+#: modules/piwik_reports/piwik_reports.pages.inc:53
+msgid "Filter"
+msgstr "フィルタ"
+
+#: modules/piwik_reports/piwik_reports.module:17
+msgid "Piwik reports"
+msgstr "Piwikリポート"
+
+#: modules/piwik_reports/piwik_reports.module:21
+msgid "Reports on your website visitors, your popular pages, the search engines keywords they used... and so much more."
+msgstr "サイト訪問者に関すること（人気のあるページ、使用した検索エンジンのキーワード、等々）をリポートします。"
+
+#: modules/piwik_reports/piwik_reports.module:25
+msgid "Visitors"
+msgstr "訪問者"
+
+#: modules/piwik_reports/piwik_reports.module:34
+msgid "Overview"
+msgstr "概観"
+
+#: modules/piwik_reports/piwik_reports.module:43
+msgid "Settings"
+msgstr "環境設定"
+
+#: modules/piwik_reports/piwik_reports.module:52
+msgid "Times"
+msgstr "時間"
+
+#: modules/piwik_reports/piwik_reports.module:61
+msgid "Locations provider"
+msgstr "位置とプロバイダ"
+
+#: modules/piwik_reports/piwik_reports.module:70
+msgid "Actions"
+msgstr "アクション"
+
+#: modules/piwik_reports/piwik_reports.module:88
+msgid "Outlinks"
+msgstr "外部リンク"
+
+#: modules/piwik_reports/piwik_reports.module:97
+msgid "Downloads"
+msgstr "ダウンロード"
+
+#: modules/piwik_reports/piwik_reports.module:106
+msgid "Referers"
+msgstr "リファラ"
+
+# Piwik本体の翻訳に準拠（他のモジュールで利用されるようなら変更）
+#: modules/piwik_reports/piwik_reports.module:115
+msgid "Evolution"
+msgstr "変遷"
+
+#: modules/piwik_reports/piwik_reports.module:124
+msgid "Search engines & keywords"
+msgstr "検索エンジンとキーワード"
+
+#: modules/piwik_reports/piwik_reports.module:133
+msgid "Websites"
+msgstr "ウェブサイト"
+
+#: modules/piwik_reports/piwik_reports.module:0
+msgid "piwik_reports"
+msgstr "piwik_reports"
+
+#: modules/piwik_reports/piwik_reports.info:0
+msgid "Piwik - Reports"
+msgstr "Piwik - リポート"
+
+#: modules/piwik_reports/piwik_reports.info:0
+msgid "Adds Piwik reports to Drupal reports section."
+msgstr "DrupalのリポートセクションにPiwikリポートを加えます。"
+
+#: modules/piwik_reports/piwik_reports.js:0
+msgid "Label"
+msgstr "ラベル"
+
+#: modules/piwik_reports/piwik_reports.js:0;0
+msgid "Unique visitors"
+msgstr "ユニーク訪問者"
+
+#: modules/piwik_reports/piwik_reports.js:0
+msgid "Hits"
+msgstr "アクセス数"
+
+#: modules/piwik_reports/piwik_reports.js:0
+msgid "Visits"
+msgstr "ビジット"
+
+#: modules/piwik_reports/piwik_reports.js:0
+msgid "Loading data..."
+msgstr "データを読み込み中..."

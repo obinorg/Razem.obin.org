@@ -1,0 +1,1867 @@
+<?php
+
+/**
+ * @file
+ * Advanced CSS/JS aggregation module
+ *
+ */
+
+/**
+ * Default value to see if advanced CSS/JS aggregation is enabled.
+ */
+define('ADVAGG_ENABLED', TRUE);
+
+/**
+ * Default stale file threshold is 30 days for mtime.
+ */
+define('ADVAGG_STALE_FILE_THRESHOLD', 2592000);
+
+/**
+ * Default stale file threshold is 15 days for atime.
+ */
+define('ADVAGG_STALE_FILE_LAST_USED_THRESHOLD', 1296000);
+
+/**
+ * Default file last used check-in is 12 hours.
+ */
+define('ADVAGG_FILE_LAST_USED_INTERVAL', 1296000);
+
+/**
+ * Default gzip compression setting.
+ */
+define('ADVAGG_GZIP_COMPRESSION', FALSE);
+
+/**
+ * Default generate the aggregate async.
+ */
+define('ADVAGG_ASYNC_GENERATION', FALSE);
+
+/**
+ * How long to wait for the server to come back with an async opp.
+ */
+define('ADVAGG_SOCKET_TIMEOUT', 1);
+
+/**
+ * Default file checksum mode.
+ */
+define('ADVAGG_CHECKSUM_MODE', 'mtime');
+
+/**
+ * Default value for writing debug info to watchdog.
+ */
+define('ADVAGG_DEBUG', FALSE);
+
+/**
+ * Default value for number of files that can be added before using @import.
+ */
+define('ADVAGG_CSS_COUNT_THRESHOLD', 25);
+
+/**
+ * Default value for not using @import if logged in and not IE.
+ */
+define('ADVAGG_CSS_LOGGED_IN_IE_DETECT', TRUE);
+
+/**
+ * Default value for creating a htaccess file in the advagg directories.
+ */
+define('ADVAGG_DIR_HTACCESS', TRUE);
+
+/**
+ * Default value for a custom files directory just for advagg directories.
+ */
+define('ADVAGG_CUSTOM_FILES_DIR', '');
+
+/**
+ * Default function used to render css output.
+ */
+define('ADVAGG_CSS_RENDER_FUNCTION', 'advagg_unlimited_css_builder');
+
+/**
+ * Default function used to render js output.
+ */
+define('ADVAGG_JS_RENDER_FUNCTION', 'advagg_js_builder');
+
+/**
+ * Default function used to save files.
+ */
+define('ADVAGG_FILE_SAVE_FUNCTION', 'advagg_file_saver');
+
+/**
+ * Default value for rebuilding the bundle on cache flush.
+ */
+define('ADVAGG_REBUILD_ON_FLUSH', FALSE);
+
+/**
+ * Default value to see if advanced CSS/JS aggregation is enabled.
+ */
+define('ADVAGG_CLOSURE', TRUE);
+
+
+// Handle 404s ASAP
+// advagg_faster_404();
+/**
+ * Quick check to see if the URL is a advagg one.
+ */
+function advagg_faster_404() {
+  if (empty($_SERVER['REQUEST_URI']) && empty($_GET['q'])) {
+    return;
+  }
+  list($css_path, $js_path) = advagg_get_root_files_dir();
+
+  // Normal requests.
+  if (!empty($_GET['q'])) {
+    $css = strpos($_GET['q'], $css_path);
+    $js = strpos($_GET['q'], $js_path);
+    if ($css !== FALSE || $js !== FALSE) {
+      menu_execute_active_handler();
+    }
+  }
+
+  // 404 from htaccess; index.php is the 404 handler.
+  if (!empty($_SERVER['REQUEST_URI'])) {
+    $css = strpos($_SERVER['REQUEST_URI'], $css_path);
+    $js = strpos($_SERVER['REQUEST_URI'], $js_path);
+    if ($css !== FALSE || $js !== FALSE) {
+      $_GET['q'] = substr($_SERVER['REQUEST_URI'], strpos($_SERVER['REQUEST_URI'], file_directory_path()));
+      menu_execute_active_handler();
+    }
+  }
+
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function advagg_perm() {
+  return array('bypass advanced aggregation');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function advagg_menu() {
+  list($css_path, $js_path) = advagg_get_root_files_dir();
+  $file_path = drupal_get_path('module', 'advagg');
+
+  $items = array();
+  $items[$css_path . '/%'] = array(
+    'page callback' => 'advagg_missing_css',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('access content'),
+    'file path' => $file_path,
+    'file' => 'advagg.missing.inc',
+  );
+  $items[$js_path . '/%'] = array(
+    'page callback' => 'advagg_missing_js',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('access content'),
+    'file path' => $file_path,
+    'file' => 'advagg.missing.inc',
+  );
+  $items['admin/settings/advagg'] = array(
+    'title' => 'Advanced CSS/JS Aggregation',
+    'description' => 'Configuration for Advanced CSS/JS Aggregation.',
+    'page callback' => 'advagg_admin_page',
+    'type' => MENU_NORMAL_ITEM,
+    'access arguments' => array('administer site configuration'),
+    'file path' => $file_path,
+    'file' => 'advagg.admin.inc',
+  );
+  $items['admin/settings/advagg/config'] = array(
+    'title' => 'Configuration',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => 0,
+  );
+  $items['admin/settings/advagg/info'] = array(
+    'title' => 'Information',
+    'description' => 'More detailed information about advagg.',
+    'page callback' => 'advagg_admin_info_page',
+    'type' => MENU_LOCAL_TASK,
+    'access arguments' => array('administer site configuration'),
+    'file path' => $file_path,
+    'file' => 'advagg.admin.inc',
+  );
+  $items['admin_menu/flush-cache/advagg'] = array(
+    'page callback' => 'advagg_admin_flush_cache',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('administer site configuration'),
+    'file path' => $file_path,
+    'file' => 'advagg.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_admin_menu().
+ *
+ * Add in a cache flush for advagg.
+ */
+function advagg_admin_menu(&$deleted) {
+  $links = array();
+
+  $links[] = array(
+    'title' => 'Adv CSS/JS Agg',
+    'path' => 'admin_menu/flush-cache/advagg',
+    'query' => 'destination',
+    'parent_path' => 'admin_menu/flush-cache',
+  );
+
+  return $links;
+}
+
+/**
+ * Implementation of hook_init().
+ */
+function advagg_init() {
+  global $base_path, $conf, $_advagg;
+
+  // disable advagg if requested.
+  if (isset($_GET['advagg']) && $_GET['advagg'] == -1 && user_access('bypass advanced aggregation')) {
+    $conf['advagg_enabled'] = FALSE;
+  }
+
+  // Create a closure function that does not add JavaScript.
+  if (variable_get('advagg_closure', ADVAGG_CLOSURE)) {
+    if (!function_exists('phptemplate_closure')) {
+      $_advagg['closure'] = TRUE;
+
+
+      /**
+      * Execute hook_footer() which is run at the end of the page right before
+      * the close of the body tag.
+      *
+      * @param $main (optional)
+      *   Whether the current page is the front page of the site.
+      * @return
+      *   A string containing the results of the hook_footer() calls.
+      */
+      function phptemplate_closure($main = 0) {
+        $footer = implode("\n", module_invoke_all('footer', $main));
+        // If advagg is disabled, then include footer JS here.
+        if (variable_get('advagg_enabled', ADVAGG_ENABLED) == FALSE) {
+          $footer .= drupal_get_js('footer');
+        }
+        return $footer;
+      }
+
+
+    }
+    else {
+      $_advagg['closure'] = FALSE;
+    }
+  }
+
+
+
+  // Skip if not an advagg request
+  if (strpos($_GET['q'], '/advagg_') === FALSE) {
+    return;
+  }
+
+  // Get our advagg file paths.
+  list($css_path, $js_path) = advagg_get_root_files_dir();
+
+  // Skip if this request belongs to us.
+  if (strpos($_GET['q'], $css_path) !== FALSE || strpos($_GET['q'], $js_path) !== FALSE) {
+    return;
+  }
+
+  // Make sure host dir exists.
+  $end = strpos($_GET['q'], '/advagg_');
+  $dir = substr($_GET['q'], 0, $end);
+
+  // Fast 404 if very bad request.
+  if (strpos($dir, "\n") !== FALSE ||  strpos($dir, '..') !== FALSE) {
+    advagg_missing_fast404();
+  }
+
+  // Fast 404 if host dir doesn't exist.
+  if (!is_dir($dir)) {
+    advagg_missing_fast404();
+  }
+
+  // Extract host name from request.
+  $start = strpos($_GET['q'], 'sites/') + 6;
+  $end = strpos($_GET['q'], '/files');
+  // Fast 404 if file structure not in the form /sites/example.com/files/...
+  if ($start === FALSE || $end === FALSE) {
+    advagg_missing_fast404();
+  }
+  $host = substr($_GET['q'], $start, $end - $start);
+
+  // Send request to correct host.
+  $ip = variable_get('advagg_server_addr', FALSE);
+  if (empty($ip)) {
+    $ip = empty($_SERVER['SERVER_ADDR']) ? '127.0.0.1' : $_SERVER['SERVER_ADDR'];
+  }
+  $url = 'http://' . $ip . $base_path . $_GET['q'];
+  $headers = array(
+    'Host' => $host,
+  );
+
+  // Send request to that host on this server.
+  $socket_timeout = ini_set('default_socket_timeout', variable_get('advagg_socket_timeout', ADVAGG_SOCKET_TIMEOUT));
+  $results = drupal_http_request($url, $headers);
+  ini_set('default_socket_timeout', $socket_timeout);
+
+  // Redirect to file.
+  $_GET['redirect_counter'] = isset($_GET['redirect_counter']) ? intval($_GET['redirect_counter']) : 0;
+  if ($_GET['redirect_counter'] > 5) {
+    watchdog('advagg', 'This request could not generate correctly. Loop detected. Request data: %info <br> !request', array(
+      '%info' => $_GET['q'],
+      '!request' => str_replace('    ', '&nbsp;&nbsp;&nbsp;&nbsp;', nl2br(htmlentities(print_r($results, TRUE)))),
+    ));
+    advagg_missing_fast404();
+  }
+
+  $_GET['redirect_counter']++;
+  $uri = $base_path . $_GET['q'] . '?redirect_counter=' . $_GET['redirect_counter'];
+  header('Location: ' . $uri, TRUE, 307);
+  exit;
+}
+
+/**
+ * Implementation of hook_theme_registry_alter().
+ *
+ * Make sure our preprocess function runs last for page.
+ *
+ * @param $theme_registry
+ *   The existing theme registry data structure.
+ */
+function advagg_theme_registry_alter(&$theme_registry) {
+  if (isset($theme_registry['page'])) {
+    // If jquery_update's preprocess function is there already, remove it.
+    if (module_exists('jquery_update') && $key = array_search('jquery_update_preprocess_page', $theme_registry['page']['preprocess functions'])) {
+      unset($theme_registry['page']['preprocess functions'][$key]);
+    }
+
+    // Add our own preprocessing function to the end of the array.
+    $theme_registry['page']['preprocess functions'][] = 'advagg_processor';
+
+    // If labjs's preprocess function is there already, move it to the bottom.
+    if (module_exists('labjs') && $key = array_search('labjs_preprocess_page', $theme_registry['page']['preprocess functions'])) {
+      $theme_registry['page']['preprocess functions'][] = $theme_registry['page']['preprocess functions'][$key];
+      unset($theme_registry['page']['preprocess functions'][$key]);
+    }
+  }
+}
+
+/**
+ * Get the CSS & JS path for advagg.
+ *
+ * @param $reset
+ *   reset the static variables.
+ * @return
+ *   array($css_path, $js_path)
+ */
+function advagg_get_root_files_dir($reset = FALSE) {
+  static $css_path = '';
+  static $js_path = '';
+  if ($reset) {
+    $css_path = '';
+    $js_path = '';
+  }
+
+  if (!empty($css_path) && !empty($js_path)) {
+    return array($css_path, $js_path);
+  }
+
+  $public_downloads = (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC);
+  if (!$public_downloads) {
+    $custom_path = variable_get('advagg_custom_files_dir', ADVAGG_CUSTOM_FILES_DIR);
+  }
+  if (empty($custom_path)) {
+    $css_path = file_create_path('advagg_css');
+    $js_path = file_create_path('advagg_js');
+    return array($css_path, $js_path);
+  }
+  file_check_directory($custom_path, FILE_CREATE_DIRECTORY);
+
+  // Get path name
+  $conf_path = conf_path();
+  if (is_link($conf_path)) {
+    $path = readlink($conf_path);
+  }
+  $conf_path = str_replace("\\", '/', $conf_path);
+  $conf_path = explode('/', $conf_path);
+  $conf_path = array_pop($conf_path);
+  $custom_path = $custom_path . '/' . $conf_path;
+  file_check_directory($custom_path, FILE_CREATE_DIRECTORY);
+
+  $css_path = $custom_path . '/advagg_css';
+  $js_path = $custom_path . '/advagg_js';
+  return array($css_path, $js_path);
+}
+
+/**
+ * Recursively merge 2 arrays together.
+ *
+ * @param $array1
+ *   first array
+ * @param $array2
+ *   second array
+ * @return
+ *   combined array
+ */
+function advagg_merge_array($array1, $array2) {
+  $final = array();
+  foreach ($array1 as $key => $value) {
+    if (is_array($value)) {
+      $final[$key] = advagg_merge_array($value, $array2[$key]);
+    }
+    elseif (is_array($array2[$key])) {
+      $final[$key] = advagg_merge_array($array2[$key], $value);
+    }
+    else {
+      $final[$key] = $value;
+    }
+  }
+
+  foreach ($array2 as $key => $value) {
+    if (is_array($value)) {
+      $final[$key] = advagg_merge_array($value, $array1[$key]);
+    }
+    elseif (is_array($array1[$key])) {
+      $final[$key] = advagg_merge_array($array1[$key], $value);
+    }
+    else {
+      $final[$key] = $value;
+    }
+  }
+  return $final;
+}
+
+/**
+ * Process variables for page.tpl.php
+ *
+ * @param $variables
+ *   The existing theme data structure.
+ */
+function advagg_processor(&$variables) {
+  // If disabled, skip
+  if (variable_get('advagg_enabled', ADVAGG_ENABLED) == FALSE) {
+    return;
+  }
+
+  // CSS
+  $css_var = $variables['css'];
+  $css_orig = $css_var;
+  $css_func = drupal_add_css();
+  $css = advagg_merge_array($css_func, $css_var);
+  $css_styles = $variables['styles'];
+  if (!empty($css)) {
+    $processed_css = advagg_process_css($css);
+    if (!empty($processed_css)) {
+      $variables['styles'] = $processed_css;
+    }
+    if (!empty($vars['conditional_styles'])) {
+      $variables['styles'] .= "\n". $vars['conditional_styles'];
+    }
+  }
+
+  // JS
+  $js_header = drupal_add_js(NULL, NULL, 'header');
+  $js_header_orig = $js_header;
+  $js_footer = drupal_add_js(NULL, NULL, 'footer');
+  $js_footer_orig = $js_footer;
+  if (!empty($js_header) || !empty($js_footer)) {
+    advagg_jquery_updater($js_header);
+
+    list($js_header_processed, $js_footer_processed) = advagg_process_js($js_header, $js_footer);
+    if (!empty($js_header_processed)) {
+      $variables['scripts'] = $js_header_processed;
+    }
+    if (!empty($js_footer_processed)) {
+      $variables['closure'] .= $js_footer_processed;
+    }
+  }
+
+  // Output debug info.
+  if (variable_get('advagg_debug', ADVAGG_DEBUG)) {
+    $data = array(
+      'css_before_vars' => $css_orig,
+      'css_before_function' => $css_func,
+      'css_before_styles' => $css_styles,
+      'css_merged' => $css,
+      'css_after' => $processed_css,
+      'js_header_before' => $js_header_orig,
+      'js_header_after' => $js_header_processed,
+      'js_footer_before' => $js_footer_orig,
+      'js_footer_after' => $js_footer_processed,
+    );
+    $data = str_replace('    ', '&nbsp;&nbsp;&nbsp;&nbsp;', nl2br(htmlentities(print_r($data, TRUE))));
+    watchdog('advagg', 'Debug info: !data', array('!data' => $data), WATCHDOG_DEBUG);
+  }
+}
+
+/**
+ * Special handling for jquery update.
+ *
+ * @param $js
+ *   List of files in the header
+ */
+function advagg_jquery_updater(&$js) {
+  if (!module_exists('jquery_update') || !variable_get('jquery_update_replace', TRUE)) {
+    return;
+  }
+
+  // Replace jquery.js first.
+  $new_jquery = array(jquery_update_jquery_path() => $js['core']['misc/jquery.js']);
+  $js['core'] = array_merge($new_jquery, $js['core']);
+  unset($js['core']['misc/jquery.js']);
+
+  // Loop through each of the required replacements.
+  foreach (jquery_update_get_replacements() as $type => $replacements) {
+    foreach ($replacements as $find => $replace) {
+      // If the file to replace is loaded on this page...
+      if (isset($js[$type][$find])) {
+        // Create a new entry for the replacement file, and unset the original one.
+        $replace = JQUERY_UPDATE_REPLACE_PATH .'/'. $replace;
+        $js[$type][$replace] = $js[$type][$find];
+        unset($js[$type][$find]);
+      }
+    }
+  }
+}
+
+/**
+ * Given a list of files; return back the aggregated filename.
+ *
+ * @param $files
+ *   List of files in the proposed bundle.
+ * @param $filetype
+ *   css or js.
+ * @param $counter
+ *   (optional) Counter value.
+ * @param $bundle_md5
+ *   (optional) Bundle's machine name.
+ * @return
+ *   Aggregated filename.
+ */
+function advagg_get_filename($files, $filetype, $counter = '', $bundle_md5 = '') {
+  $filenames = array();
+
+  // Create bundle md5
+  if (empty($bundle_md5)) {
+    $bundle_md5 = md5(implode('', $files));
+  }
+
+  $filenames[] = array(
+    'filetype' => $filetype,
+    'files' => $files,
+    'counter' => $counter,
+    'bundle_md5' => $bundle_md5,
+  );
+
+  // Invoke hook_advagg_filenames_alter() to give installed modules a chance to
+  // alter filenames. One to many relationships come to mind.
+  drupal_alter('advagg_filenames', $filenames);
+
+  $output = array();
+  foreach ($filenames as $values) {
+    $filetype = $values['filetype'];
+    $files = $values['files'];
+    $counter = $values['counter'];
+    $bundle_md5 = $values['bundle_md5'];
+
+    // Get counter if there.
+    if (empty($counter)) {
+      $counter = db_result(db_query("SELECT counter FROM {advagg_bundles} WHERE bundle_md5 = '%s'", $bundle_md5));
+    }
+
+    // If this is a brand new bundle then insert file/bundle info into database.
+    if ($counter === FALSE) {
+      $counter = 0;
+      foreach ($files as $order => $filename) {
+        $filename_md5 = md5($filename);
+
+        // Insert file into the advagg_files table if it doesn't exist.
+        $checksum = db_result(db_query("SELECT checksum FROM {advagg_files} WHERE filename_md5 = '%s'", $filename_md5));
+        if (empty($checksum)) {
+          $checksum = advagg_checksum($filename);
+          db_query("INSERT INTO {advagg_files} (filename, filename_md5, checksum, filetype) VALUES ('%s', '%s', '%s', '%s')", $filename, $filename_md5, $checksum, $filetype);
+        }
+
+        // Create the entries in the advagg_bundles table.
+        db_query("INSERT INTO {advagg_bundles} (bundle_md5, filename_md5, counter, porder) VALUES ('%s', '%s', '%d', '%d')", $bundle_md5, $filename_md5, $counter, $order);
+      }
+    }
+    // Prefix filename to prevent blocking by firewalls which reject files
+    // starting with "ad*".
+    $output[] = array(
+      'filename' => $filetype . '_' . $bundle_md5 . '_' . $counter . '.' . $filetype,
+      'files' => $files,
+      'bundle_md5' => $bundle_md5,
+    );
+  }
+  return $output;
+}
+
+/**
+ * Save a string to the specified destination. Verify that file size is not zero.
+ *
+ * @param $data
+ *   A string containing the contents of the file.
+ * @param $dest
+ *   A string containing the destination location.
+ * @return
+ *   Boolean indicating if the file save was successful.
+ */
+function advagg_file_saver($data, $dest, $force, $type) {
+  // Create the JS file.
+  $file_save_data = 'file_save_data';
+  $custom_path = variable_get('advagg_custom_files_dir', ADVAGG_CUSTOM_FILES_DIR);
+  if (!empty($custom_path)) {
+    $file_save_data = 'advagg_file_save_data';
+  }
+
+  if (!$file_save_data($data, $dest, FILE_EXISTS_REPLACE)) {
+    return FALSE;
+  }
+
+  // Make sure filesize is not zero.
+  clearstatcache();
+  if (@filesize($dest) == 0) {
+    if (!$file_save_data($data, $dest, FILE_EXISTS_REPLACE)) {
+      return FALSE;
+    }
+    clearstatcache();
+    if (@filesize($dest) == 0) {
+      // Filename is bad, create a new one next time.
+      file_delete($dest);
+      return FALSE;
+    }
+  }
+
+  if (variable_get('advagg_gzip_compression', ADVAGG_GZIP_COMPRESSION) && extension_loaded('zlib')) {
+    $gzip_dest = $dest . '.gz';
+
+    if (!file_exists($gzip_dest) || $force) {
+      $gzip_data = gzencode($data, 9, FORCE_GZIP);
+      if (!$file_save_data($gzip_data, $gzip_dest, FILE_EXISTS_REPLACE)) {
+        return FALSE;
+      }
+
+      // Make sure filesize is not zero.
+      clearstatcache();
+      if (@filesize($gzip_dest) == 0) {
+        if (!$file_save_data($gzip_data, $gzip_dest, FILE_EXISTS_REPLACE)) {
+          return FALSE;
+        }
+        clearstatcache();
+        if (@filesize($gzip_dest) == 0) {
+          // Filename is bad, create a new one next time.
+          file_delete($gzip_dest);
+          return FALSE;
+        }
+      }
+    }
+  }
+
+  // Make sure .htaccess file exists.
+  advagg_htaccess_check_generate($dest);
+
+  cache_set($dest, time(), 'cache_advagg', CACHE_PERMANENT);
+  return TRUE;
+}
+
+
+
+/**
+ * ***MODIFIED CORE FUNCTIONS BELOW***
+ *
+ * @see file_save_data
+ * @see file_move
+ * @see file_copy
+ */
+
+/**
+ * Save a string to the specified destination.
+ *
+ * @see file_save_data
+ *
+ * @param $data A string containing the contents of the file.
+ * @param $dest A string containing the destination location.
+ * @param $replace Replace behavior when the destination file already exists.
+ *   - FILE_EXISTS_REPLACE - Replace the existing file
+ *   - FILE_EXISTS_RENAME - Append _{incrementing number} until the filename is unique
+ *   - FILE_EXISTS_ERROR - Do nothing and return FALSE.
+ *
+ * @return A string containing the resulting filename or 0 on error
+ */
+function advagg_file_save_data($data, $dest, $replace = FILE_EXISTS_RENAME) {
+  $temp = file_directory_temp();
+  // On Windows, tempnam() requires an absolute path, so we use realpath().
+  $file = tempnam(realpath($temp), 'file');
+  if (!$fp = fopen($file, 'wb')) {
+    drupal_set_message(t('The file could not be created.'), 'error');
+    return 0;
+  }
+  fwrite($fp, $data);
+  fclose($fp);
+
+  if (!advagg_file_move($file, $dest, $replace)) {
+    return 0;
+  }
+
+  return $file;
+}
+
+/**
+ * Moves a file to a new location.
+ *
+ * @see file_move
+ *
+ * - Checks if $source and $dest are valid and readable/writable.
+ * - Performs a file move if $source is not equal to $dest.
+ * - If file already exists in $dest either the call will error out, replace the
+ *   file or rename the file based on the $replace parameter.
+ *
+ * @param $source
+ *   Either a string specifying the file location of the original file or an
+ *   object containing a 'filepath' property. This parameter is passed by
+ *   reference and will contain the resulting destination filename in case of
+ *   success.
+ * @param $dest
+ *   A string containing the directory $source should be copied to. If this
+ *   value is omitted, Drupal's 'files' directory will be used.
+ * @param $replace
+ *   Replace behavior when the destination file already exists.
+ *   - FILE_EXISTS_REPLACE: Replace the existing file.
+ *   - FILE_EXISTS_RENAME: Append _{incrementing number} until the filename is
+ *     unique.
+ *   - FILE_EXISTS_ERROR: Do nothing and return FALSE.
+ * @return
+ *   TRUE for success, FALSE for failure.
+ */
+function advagg_file_move(&$source, $dest = 0, $replace = FILE_EXISTS_RENAME) {
+  $path_original = is_object($source) ? $source->filepath : $source;
+
+  if (advagg_file_copy($source, $dest, $replace)) {
+    $path_current = is_object($source) ? $source->filepath : $source;
+
+    if ($path_original == $path_current || file_delete($path_original)) {
+      return 1;
+    }
+    drupal_set_message(t('The removal of the original file %file has failed.', array('%file' => $path_original)), 'error');
+  }
+  return 0;
+}
+
+/**
+ * Copies a file to a new location.
+ *
+ * @see file_copy
+ *
+ * This is a powerful function that in many ways performs like an advanced
+ * version of copy().
+ * - Checks if $source and $dest are valid and readable/writable.
+ * - Performs a file copy if $source is not equal to $dest.
+ * - If file already exists in $dest either the call will error out, replace the
+ *   file or rename the file based on the $replace parameter.
+ *
+ * @param $source
+ *   Either a string specifying the file location of the original file or an
+ *   object containing a 'filepath' property. This parameter is passed by
+ *   reference and will contain the resulting destination filename in case of
+ *   success.
+ * @param $dest
+ *   A string containing the directory $source should be copied to. If this
+ *   value is omitted, Drupal's 'files' directory will be used.
+ * @param $replace
+ *   Replace behavior when the destination file already exists.
+ *   - FILE_EXISTS_REPLACE: Replace the existing file.
+ *   - FILE_EXISTS_RENAME: Append _{incrementing number} until the filename is
+ *     unique.
+ *   - FILE_EXISTS_ERROR: Do nothing and return FALSE.
+ * @return
+ *   TRUE for success, FALSE for failure.
+ */
+function advagg_file_copy(&$source, $dest = 0, $replace = FILE_EXISTS_RENAME) {
+  $directory = dirname($dest);
+
+
+  // Process a file upload object.
+  if (is_object($source)) {
+    $file = $source;
+    $source = $file->filepath;
+    if (!$basename) {
+      $basename = $file->filename;
+    }
+  }
+
+  $source = realpath($source);
+  if (!file_exists($source)) {
+    drupal_set_message(t('The selected file %file could not be copied, because no file by that name exists. Please check that you supplied the correct filename.', array('%file' => $source)), 'error');
+    return 0;
+  }
+
+  // If the destination file is not specified then use the filename of the source file.
+  $basename = basename($dest);
+  $basename = $basename ? $basename : basename($source);
+  $dest = $directory . '/' . $basename;
+
+  // Make sure source and destination filenames are not the same, makes no sense
+  // to copy it if they are. In fact copying the file will most likely result in
+  // a 0 byte file. Which is bad. Real bad.
+  if ($source != realpath($dest)) {
+    if (!$dest = file_destination($dest, $replace)) {
+      drupal_set_message(t('The selected file %file could not be copied, because a file by that name already exists in the destination.', array('%file' => $source)), 'error');
+      return FALSE;
+    }
+
+    if (!@copy($source, $dest)) {
+      drupal_set_message(t('The selected file %file could not be copied. ' . $dest, array('%file' => $source)), 'error');
+      return 0;
+    }
+
+    // Give everyone read access so that FTP'd users or
+    // non-webserver users can see/read these files,
+    // and give group write permissions so group members
+    // can alter files uploaded by the webserver.
+    @chmod($dest, 0664);
+  }
+
+  if (isset($file) && is_object($file)) {
+    $file->filename = $basename;
+    $file->filepath = $dest;
+    $source = $file;
+  }
+  else {
+    $source = $dest;
+  }
+
+  return 1; // Everything went ok.
+}
+
+/**
+ * Generate a checksum for a given filename.
+ *
+ * @param $filename
+ *   filename
+ * @return
+ *   Checksum value.
+ */
+function advagg_checksum($filename) {
+  if (file_exists($filename)) {
+    $mode = variable_get('advagg_checksum_mode', ADVAGG_CHECKSUM_MODE);
+    if ($mode == 'mtime') {
+      $checksum = @filemtime($filename);
+      if ($checksum === FALSE) {
+        touch($filename);
+        $checksum = @filemtime($filename);
+        // Use md5 as a last option.
+        if ($checksum === FALSE) {
+          $checksum = md5(file_get_contents($filename));
+        }
+      }
+    }
+    elseif ($mode = 'md5') {
+      $checksum = md5(file_get_contents($filename));
+    }
+  }
+  else {
+    $checksum = '-1';
+  }
+  return $checksum;
+}
+
+/**
+ * See if this bundle has been built yet.
+ *
+ * @param $filepath
+ *   filename
+ * @return
+ *   Boolean indicating if the bundle already exists.
+ */
+function advagg_bundle_built($filepath) {
+  $data = cache_get($filepath, 'cache_advagg');
+  if (!empty($data->data)) {
+    // Refresh timestamp if older then 12 hours.
+    if (time() - $data->data > variable_get('advagg_file_last_used_interval', ADVAGG_FILE_LAST_USED_INTERVAL)) {
+      cache_set($filepath, time(), 'cache_advagg', CACHE_PERMANENT);
+    }
+    return TRUE;
+  }
+
+  // If not in cache check disk.
+  clearstatcache();
+  if (file_exists($filepath)) {
+    if (@filesize($filepath) == 0) {
+      return FALSE;
+    }
+  }
+  else {
+    return FALSE;
+  }
+  // File existed on disk; place in cache.
+  cache_set($filepath, time(), 'cache_advagg', CACHE_PERMANENT);
+  return TRUE;
+}
+
+/**
+ * Implementation of hook_flush_caches().
+ */
+function advagg_flush_caches() {
+  set_time_limit(0);
+  global $_advagg;
+  // Only one advagg cache flusher can run at a time.
+  if (!lock_acquire('advagg_flush_caches')) {
+    return;
+  }
+
+  // Find files that have changed.
+  $needs_refreshing = array();
+  $results = db_query("SELECT * FROM {advagg_files}");
+  while ($row = db_fetch_array($results)) {
+    $checksum = advagg_checksum($row['filename']);
+    // Let other modules see if the bundles needs to be rebuilt.
+    // hook_advagg_files_table
+    // Return TRUE in order to increment the counter.
+    $hook_results = module_invoke_all('advagg_files_table', $row, $checksum);
+
+    // Check each return value; see if an update is needed.
+    $update = FALSE;
+    if (!empty($hook_results)) {
+      foreach ($hook_results as $update) {
+        if ($update === TRUE) {
+          break;
+        }
+      }
+    }
+
+    // Increment the counter if needed and mark file for bundle refreshment..
+    if ($checksum != $row['checksum'] || $update == TRUE) {
+      $needs_refreshing[$row['filename_md5']] = $row['filename'];
+      // Update checksum; increment counter.
+      db_query("UPDATE {advagg_files} SET checksum = '%s', counter = counter + 1 WHERE filename_md5 = '%s'", $checksum, $row['filename_md5']);
+    }
+  }
+
+  // Get the bundles.
+  $bundles = array();
+  foreach ($needs_refreshing as $filename_md5 => $filename) {
+    $results = db_query("SELECT bundle_md5 FROM {advagg_bundles} WHERE filename_md5 = '%s'", $filename_md5);
+    while($row = db_fetch_array($results)) {
+      $bundles[$row['bundle_md5']] = $row['bundle_md5'];
+    }
+  }
+
+  foreach ($bundles as $bundle_md5) {
+    // Increment Counter
+    db_query("UPDATE {advagg_bundles} SET counter = counter + 1 WHERE bundle_md5 = '%s'", $bundle_md5);
+
+    if (variable_get('advagg_rebuild_on_flush', ADVAGG_REBUILD_ON_FLUSH)) {
+      // Rebuild bundles
+      $good = advagg_rebuild_bundle($bundle_md5);
+      if (!$good) {
+        watchdog('advagg', 'This bundle could not be generated correctly. Bundle MD5: %md5', array('%md5' => $bundle_md5));
+      }
+      else {
+        $_advagg['rebuilt'][] = $bundle_md5;
+      }
+    }
+  }
+  $_advagg['bundles'] = $bundles;
+  $_advagg['files'] = $needs_refreshing;
+
+  // Garbage collection
+  list($css_path, $js_path) = advagg_get_root_files_dir();
+  file_scan_directory($css_path, '.*', array('.', '..', 'CVS'), 'advagg_delete_file_if_stale', TRUE);
+  file_scan_directory($js_path, '.*', array('.', '..', 'CVS'), 'advagg_delete_file_if_stale', TRUE);
+
+  lock_release('advagg_flush_caches');
+}
+
+/**
+ * Rebuild a bundle.
+ *
+ * @param $bundle_md5
+ *   Bundle's machine name.
+ * @param $counter
+ *   Counter value.
+ * @param $force
+ *   Rebuild even if file already exists.
+ */
+function advagg_rebuild_bundle($bundle_md5, $counter = '', $force = FALSE) {
+  global $conf;
+  $files = array();
+  $results = db_query("SELECT filename, filetype FROM {advagg_files} AS af INNER JOIN {advagg_bundles} AS ab USING ( filename_md5 ) WHERE bundle_md5 = '%s' ORDER BY porder ASC", $bundle_md5);
+  while($row = db_fetch_array($results)) {
+    $files[] = $row['filename'];
+    $filetype = $row['filetype'];
+  }
+
+  $conf['advagg_async_generation'] = FALSE;
+  return advagg_css_js_file_builder($filetype, $files, $counter, $force, $bundle_md5);
+}
+
+/**
+ * Callback to delete files modified more than a set time ago.
+ *
+ * @param $filename
+ *   name of a file to check how old it is.
+ */
+function advagg_delete_file_if_stale($filename) {
+  // Do not process .gz files
+  if (strpos($filename, '.gz') !== FALSE) {
+    return;
+  }
+  $now = time();
+  $file_last_mod = variable_get('advagg_stale_file_threshold', ADVAGG_STALE_FILE_THRESHOLD);
+  $file_last_used = variable_get('advagg_stale_file_last_used_threshold', ADVAGG_STALE_FILE_LAST_USED_THRESHOLD);
+
+  // Default stale file threshold is 30 days.
+  if ($now - filemtime($filename) <= $file_last_mod) {
+    return;
+  }
+
+  // Check to see if this file is still in use.
+  $data = cache_get($filename, 'cache_advagg');
+  if (!empty($data->data)) {
+    $file_last_a = @fileatime($filename);
+    $file_last_agz = @fileatime($filename . '.gz');
+    $file_last_a = max($file_last_a, $file_last_agz);
+    if ($now - $data->data > $file_last_used && $now - $file_last_a > $file_last_used) {
+      // Delete file if it hasn't been used in the last 15 days.
+      file_delete($filename);
+      file_delete($filename . '.gz');
+    }
+    else {
+      // Touch file so we don't check again for another 30 days
+      touch($filename);
+    }
+  }
+  else {
+    // Delete file if it is not in the cache.
+    file_delete($filename);
+    file_delete($filename . '.gz');
+  }
+}
+
+/**
+ * Get data about a file.
+ *
+ * @param $filename_md5
+ *   md5 of filename.
+ * @return
+ *   data array from database.
+ */
+function advagg_get_file_data($filename_md5) {
+  $data = db_result(db_query("SELECT data FROM {advagg_files} WHERE filename_md5 = '%s'", $filename_md5));
+  if (!empty($data)) {
+    $data = unserialize($data);
+  }
+  return $data;
+}
+
+/**
+ * Get data about a file.
+ *
+ * @param $filename_md5
+ *   md5 of filename.
+ * @param $data
+ *   data to store.
+ */
+function advagg_set_file_data($filename_md5, $data) {
+  $serialized_data = serialize($data);
+  db_query("UPDATE {advagg_files} SET data = '%s' WHERE filename_md5 = '%s'", $serialized_data, $filename_md5);
+}
+
+/**
+ * Given path output uri to that file
+ *
+ * @param $filename_md5
+ *   md5 of filename.
+ * @param $data
+ *   data to store.
+ */
+function advagg_build_uri($path) {
+  // CDN Support.
+  if (module_exists('cdn')) {
+    $status = variable_get(CDN_STATUS_VARIABLE, CDN_DISABLED);
+    if (($status == CDN_ENABLED || ($status == CDN_TESTING && user_access(CDN_PERM_ACCESS_TESTING))) && variable_get(CDN_THEME_LAYER_FALLBACK_VARIABLE, FALSE) == FALSE) {
+      return file_create_url($path);
+    }
+  }
+  return base_path() . $path;
+}
+
+/**
+ * ***MODIFIED CORE FUNCTIONS BELOW***
+ *
+ * @see drupal_get_css
+ * @see drupal_build_css_cache
+ * @see drupal_get_js
+ * @see drupal_build_js_cache
+ */
+
+/**
+ * Returns an array of values needed for aggregation
+ *
+ * @param $noagg
+ *   (optional) Bool indicating that aggregation should be disabled if TRUE.
+ * @return
+ *   array of values to be imported via list() function.
+ */
+function advagg_process_css_js_prep($noagg = FALSE) {
+  $preprocess = (!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update');
+  if ($noagg || (isset($_GET['advagg']) && $_GET['advagg'] == 0 && user_access('bypass advanced aggregation'))) {
+    $preprocess = FALSE;
+  }
+
+  $public_downloads = (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC);
+  if (!$public_downloads) {
+    $custom_path = variable_get('advagg_custom_files_dir', ADVAGG_CUSTOM_FILES_DIR);
+    if (!empty($custom_path)) {
+      $public_downloads = TRUE;
+    }
+  }
+
+  // A dummy query-string is added to filenames, to gain control over
+  // browser-caching. The string changes on every update or full cache
+  // flush, forcing browsers to load a new copy of the files, as the
+  // URL changed.
+  $query_string = '?'. substr(variable_get('css_js_query_string', '0'), 0, 1);
+
+
+
+  return array($preprocess, $public_downloads, $query_string);
+}
+
+
+/**
+ * Returns a themed representation of all stylesheets that should be attached to the page.
+ *
+ * @see drupal_get_css
+ *
+ * It loads the CSS in order, with 'module' first, then 'theme' afterwards.
+ * This ensures proper cascading of styles so themes can easily override
+ * module styles through CSS selectors.
+ *
+ * Themes may replace module-defined CSS files by adding a stylesheet with the
+ * same filename. For example, themes/garland/system-menus.css would replace
+ * modules/system/system-menus.css. This allows themes to override complete
+ * CSS files, rather than specific selectors, when necessary.
+ *
+ * If the original CSS file is being overridden by a theme, the theme is
+ * responsible for supplying an accompanying RTL CSS file to replace the
+ * module's.
+ *
+ * @param $css
+ *   (optional) An array of CSS files. If no array is provided, the default
+ *   stylesheets array is used instead.
+ * @param $noagg
+ *   (optional) Bool indicating that aggregation should be disabled if TRUE.
+ * @return
+ *   A string of XHTML CSS tags.
+ */
+function advagg_process_css($css = NULL, $noagg = FALSE) {
+  global $conf;
+  $original_css = $css;
+  if (!isset($css)) {
+    $css = drupal_add_css();
+  }
+  $module_no_preprocess = array();
+  $output_no_preprocess = array();
+  $output_preprocess = array();
+  $theme_no_preprocess = array();
+
+  // Get useful info.
+  list($preprocess_css, $public_downloads, $query_string) = advagg_process_css_js_prep($noagg);
+
+  // Invoke hook_advagg_css_pre_alter() to give installed modules a chance to
+  // modify the data in the $javascript array if necessary.
+  drupal_alter('advagg_css_pre', $css, $preprocess_css, $public_downloads);
+
+  foreach ($css as $media => $types) {
+    // If CSS preprocessing is off, we still need to output the styles.
+    // Additionally, go through any remaining styles if CSS preprocessing is on and output the non-cached ones.
+    foreach ($types as $type => $files) {
+      if ($type == 'module') {
+        // Setup theme overrides for module styles.
+        $theme_styles = array();
+        foreach (array_keys($css[$media]['theme']) as $theme_style) {
+          $theme_styles[] = basename($theme_style);
+        }
+      }
+      foreach ($types[$type] as $file => $preprocess) {
+        // If the theme supplies its own style using the name of the module style, skip its inclusion.
+        // This includes any RTL styles associated with its main LTR counterpart.
+        if ($type == 'module' && in_array(str_replace('-rtl.css', '.css', basename($file)), $theme_styles)) {
+          // Unset the file to prevent its inclusion when CSS aggregation is enabled.
+          unset($types[$type][$file]);
+          continue;
+        }
+        // Only include the stylesheet if it exists.
+        if (file_exists($file)) {
+          if (!$preprocess || !($public_downloads && $preprocess_css)) {
+            // If a CSS file is not to be preprocessed and it's a module CSS file, it needs to *always* appear at the *top*,
+            // regardless of whether preprocessing is on or off.
+            if (!$preprocess && $type == 'module') {
+              $module_no_preprocess[] = array(
+                'media' => $media,
+                'href' => advagg_build_uri($file) . $query_string,
+                'prefix' => '',
+                'suffix' => '',
+              );
+            }
+            // If a CSS file is not to be preprocessed and it's a theme CSS file, it needs to *always* appear at the *bottom*,
+            // regardless of whether preprocessing is on or off.
+            else if (!$preprocess && $type == 'theme') {
+              $theme_no_preprocess[] = array(
+                'media' => $media,
+                'href' => advagg_build_uri($file) . $query_string,
+                'prefix' => '',
+                'suffix' => '',
+              );
+            }
+            else {
+              $output_no_preprocess[] = array(
+                'media' => $media,
+                'href' => advagg_build_uri($file),
+                'prefix' => '',
+                'suffix' => '',
+              );
+            }
+          }
+        }
+      }
+    }
+
+    if ($public_downloads && $preprocess_css) {
+      $files = array();
+      foreach ($types as $type) {
+        foreach ($type as $file => $cache) {
+          if ($cache) {
+            $files[] = $file;
+          }
+        }
+      }
+      $preprocess_files = advagg_css_js_file_builder('css', $files);
+      $good = TRUE;
+      foreach ($preprocess_files as $preprocess_file => $extra) {
+        if ($extra !== FALSE && is_array($extra)) {
+          $prefix = $extra['prefix'];
+          $suffix = $extra['suffix'];
+          $output_preprocess[] = array(
+            'media' => $media,
+            'href' => advagg_build_uri($preprocess_file),
+            'prefix' => $prefix,
+            'suffix' => $suffix,
+          );
+        }
+        else {
+          $good = FALSE;
+          break;
+        }
+      }
+      if (!$good) {
+        // Redo with aggregation turned off and return the new value.
+        watchdog('advagg', 'CSS aggregation failed. %filename could not be saved correctly.', array('%filename' => $preprocess_file), WATCHDOG_ERROR);
+        $data = advagg_process_css($original_css, TRUE);
+        return $data;
+      }
+    }
+  }
+
+  // Default function called: advagg_unlimited_css_builder
+  $function = variable_get('advagg_css_render_function', ADVAGG_CSS_RENDER_FUNCTION);
+  return $function($module_no_preprocess, $output_no_preprocess, $output_preprocess, $theme_no_preprocess);
+}
+
+/**
+ * Logic to figure out what kind of css tags to use.
+ *
+ * @param $module_no_preprocess
+ *   array of css files ($media, $href)
+ * @param $output_no_preprocess
+ *   array of css files ($media, $href)
+ * @param $output_preprocess
+ *   array of css files ($media, $href, $prefix, $suffix)
+ * @param $theme_no_preprocess
+ *   array of css files ($media, $href)
+ * @return
+ *   html for loading the css. html for the head.
+ */
+function advagg_unlimited_css_builder($module_no_preprocess, $output_no_preprocess, $output_preprocess, $theme_no_preprocess) {
+  global $user;
+  $styles = '';
+  $files = array_merge($module_no_preprocess, $output_no_preprocess, $output_preprocess, $theme_no_preprocess);
+
+  // Select method for css html output
+  if (count($files) < variable_get('advagg_css_count_threshold', ADVAGG_CSS_COUNT_THRESHOLD)) {
+    advagg_unlimited_css_traditional($files, $styles);
+  }
+  elseif (variable_get('advagg_css_logged_in_ie_detect', ADVAGG_CSS_LOGGED_IN_IE_DETECT) && $user->uid != 0) {
+    // Detect IE browsers here
+    $is_ie = FALSE;
+    if (isset($_SERVER['HTTP_USER_AGENT'])) {
+      // Strings for testing found via http://chrisschuld.com/projects/browser-php-detecting-a-users-browser-from-php/
+      // Test for v1 - v1.5 IE
+      // Test for versions > 1.5
+      // Test for Pocket IE
+      if (   stristr($_SERVER['HTTP_USER_AGENT'], 'microsoft internet explorer')
+          || stristr($_SERVER['HTTP_USER_AGENT'], 'msie')
+          || stristr($_SERVER['HTTP_USER_AGENT'], 'mspie')
+          ) {
+        $is_ie = TRUE;
+      }
+    }
+    // Play Safe and treat as IE if user agent is not set
+    else {
+      $is_ie = TRUE;
+    }
+
+    if ($is_ie) {
+      advagg_unlimited_css_import(array_merge($module_no_preprocess, $output_no_preprocess), $styles);
+      advagg_unlimited_css_traditional($output_preprocess, $styles);
+      advagg_unlimited_css_import($theme_no_preprocess, $styles);
+    }
+    else {
+      advagg_unlimited_css_traditional($files, $styles);
+    }
+  }
+  else {
+    advagg_unlimited_css_import(array_merge($module_no_preprocess, $output_no_preprocess), $styles);
+    advagg_unlimited_css_traditional($output_preprocess, $styles);
+    advagg_unlimited_css_import($theme_no_preprocess, $styles);
+  }
+
+  return $styles;
+}
+
+/**
+ * Use link tags for CSS
+ *
+ * @param $files
+ *   array of css files ($media, $href, $prefix, $suffix)
+ * @param &$styles
+ *   html string
+ */
+function advagg_unlimited_css_traditional($files, &$styles) {
+  foreach ($files as $css_file) {
+    $media = $css_file['media'];
+    $href = $css_file['href'];
+    $prefix = empty($css_file['prefix']) ? '' : $css_file['prefix'];
+    $suffix = empty($css_file['suffix']) ? '' : $css_file['suffix'];
+    $styles .= $prefix . '<link type="text/css" rel="stylesheet" media="'. $media .'" href="'. $href . '" />' . $suffix . "\n";
+  }
+}
+
+/**
+ * Use import tags for CSS
+ *
+ * @param $files
+ *   array of css files ($media, $href)
+ * @param &$styles
+ *   html string
+ */
+function advagg_unlimited_css_import($files, &$styles) {
+  $counter = 0;
+  $media = NULL;
+  $import = '';
+  foreach ($files as $css_file) {
+    $media_new = $css_file['media'];
+    $href = $css_file['href'];
+    if ($media_new != $media || $counter > variable_get('advagg_css_count_threshold', ADVAGG_CSS_COUNT_THRESHOLD)) {
+      if ($media && !empty($import)) {
+        $styles .= "\n".'<style type="text/css" media="'. $media .'">'."\n". $import .'</style>';
+        $import = '';
+      }
+      $counter = 0;
+      $media = $media_new;
+    }
+    $import .= '@import "'. $href .'";'."\n";
+    $counter++;
+  }
+  if ($media && !empty($import)) {
+    $styles .= "\n".'<style type="text/css" media="'. $media .'">'."\n". $import .'</style>';
+  }
+}
+
+/**
+ * Returns a themed presentation of all JavaScript code for the current page.
+ *
+ * @see drupal_get_js
+ *
+ * References to JavaScript files are placed in a certain order: first, all
+ * 'core' files, then all 'module' and finally all 'theme' JavaScript files
+ * are added to the page. Then, all settings are output, followed by 'inline'
+ * JavaScript code. If running update.php, all preprocessing is disabled.
+ *
+ * @param $javascript_header
+ *   (optional) An array with all JavaScript code. Defaults to the default
+ *   JavaScript array for the header.
+ * @param $javascript_footer
+ *   (optional) An array with all JavaScript code. Defaults to the default
+ *   JavaScript array for the footer.
+ * @param $noagg
+ *   (optional) Bool indicating that aggregation should be disabled if TRUE.
+ * @return
+ *   All JavaScript code segments and includes for the scope as HTML tags.
+ */
+function advagg_process_js($javascript_header = NULL, $javascript_footer = NULL, $noagg = FALSE) {
+  global $conf;
+  if ((!defined('MAINTENANCE_MODE') || MAINTENANCE_MODE != 'update') && function_exists('locale_update_js_files')) {
+    locale_update_js_files();
+  }
+
+  if (!isset($javascript_header)) {
+    $javascript_header = drupal_add_js(NULL, NULL, 'header');
+  }
+  if (!isset($javascript_footer)) {
+    $javascript_footer = drupal_add_js(NULL, NULL, 'footer');
+  }
+  if (empty($javascript_header) && empty($javascript_footer)) {
+    return '';
+  }
+
+  // Get useful info.
+  list($preprocess_js, $public_downloads, $query_string) = advagg_process_css_js_prep($noagg);
+
+  // Invoke hook_advagg_js_header_footer_alter() to give installed modules a chance to
+  // modify the data in the header and footer JS if necessary.
+  $master_set = array(
+    'header' => $javascript_header,
+    'footer' => $javascript_footer,
+  );
+  drupal_alter('advagg_js_header_footer', $master_set, $preprocess_js, $public_downloads);
+
+  $output = array();
+  foreach ($master_set as $scope => $javascript) {
+
+    // Invoke hook_advagg_js_pre_alter() to give installed modules a chance to
+    // modify the data in the $javascript array if necessary.
+    drupal_alter('advagg_js_pre', $javascript, $preprocess_js, $public_downloads, $scope);
+
+    $setting_no_preprocess = array();
+    $inline_no_preprocess = array();
+    $external_no_preprocess = array();
+    $output_no_preprocess = array('core' => array(), 'module' => array(), 'theme' => array());
+    $output_preprocess = array();
+    $preprocess_list = array();
+
+    foreach ($javascript as $type => $data) {
+
+      if (!$data) continue;
+
+      switch ($type) {
+        case 'setting':
+          $setting_no_preprocess[] = 'jQuery.extend(Drupal.settings, ' . drupal_to_js(call_user_func_array('array_merge_recursive', $data)) . ");";
+          break;
+
+        case 'inline':
+          foreach ($data as $info) {
+            $inline_no_preprocess[] = array($info['code'], $info['defer']);
+          }
+          break;
+
+        case 'external':
+          foreach ($data as $path => $info) {
+            $external_no_preprocess[] = array($path, $info['defer']);
+          }
+          break;
+
+        default:
+          // If JS preprocessing is off, we still need to output the scripts.
+          // Additionally, go through any remaining scripts if JS preprocessing is on and output the non-cached ones.
+          foreach ($data as $path => $info) {
+            if (!$info['preprocess'] || !$public_downloads || !$preprocess_js) {
+              $output_no_preprocess[$type][] = array(advagg_build_uri($path) . ($info['cache'] ? $query_string : '?'. time()), $info['defer']);
+            }
+            else {
+              $preprocess_list[$path] = $info;
+            }
+          }
+      }
+    }
+
+    // Aggregate any remaining JS files that haven't already been output.
+    if ($public_downloads && $preprocess_js && count($preprocess_list) > 0) {
+      $files = array();
+      foreach ($preprocess_list as $path => $info) {
+        if ($info['preprocess']) {
+          $files[] = $path;
+        }
+      }
+      $preprocess_files = advagg_css_js_file_builder('js', $files);
+      $good = TRUE;
+      foreach ($preprocess_files as $preprocess_file => $extra) {
+        if ($extra !== FALSE && is_array($extra)) {
+          $prefix = $extra['prefix'];
+          $suffix = $extra['suffix'];
+          $output_preprocess[] = array(advagg_build_uri($preprocess_file), $prefix, $suffix);
+        }
+        else {
+          $good = FALSE;
+          break;
+        }
+      }
+      if (!$good) {
+        // Redo with aggregation turned off and return the new value.
+        watchdog('advagg', 'JS aggregation failed. %filename could not be saved correctly.', array('%filename' => $preprocess_file), WATCHDOG_ERROR);
+        $data = advagg_process_js($javascript_header, $javascript_footer, TRUE);
+        return $data;
+      }
+    }
+
+    // Default function called: advagg_js_builder
+    $function = variable_get('advagg_js_render_function', ADVAGG_JS_RENDER_FUNCTION);
+    $output[] = $function($external_no_preprocess, $output_preprocess, $output_no_preprocess, $setting_no_preprocess, $inline_no_preprocess, $scope);
+  }
+  return $output;
+}
+
+/**
+ * Build and theme JS output for header.
+ *
+ * @param $external_no_preprocess
+ *   array(array($src, $defer))
+ * @param $output_preprocess
+ *   array(array($src, $prefix, $suffix))
+ * @param $output_no_preprocess
+ *   array(array(array($src, $defer)))
+ * @param $setting_no_preprocess
+ *   array(array($code))
+ * @param $inline_no_preprocess
+ *   array(array($code, $defer))
+ * @param $scope
+ *   header or footer
+ * @return
+ *   String of themed JavaScript.
+ */
+function advagg_js_builder($external_no_preprocess, $output_preprocess, $output_no_preprocess, $setting_no_preprocess, $inline_no_preprocess) {
+  $output = '';
+
+  // For inline Javascript to validate as XHTML, all Javascript containing
+  // XHTML needs to be wrapped in CDATA. To make that backwards compatible
+  // with HTML 4, we need to comment out the CDATA-tag.
+  $embed_prefix = "\n<!--//--><![CDATA[//><!--\n";
+  $embed_suffix = "\n//--><!]]>\n";
+
+  // Keep the order of JS files consistent as some are preprocessed and others are not.
+  // Make sure any inline or JS setting variables appear last after libraries have loaded.
+
+  if (!empty($external_no_preprocess)) {
+    foreach ($external_no_preprocess as $values) {
+      list ($src, $defer) = $values;
+      $output .= '<script type="text/javascript"'. ($defer ? ' defer="defer"' : '') .' src="'. $src . "\"></script>\n";
+    }
+  }
+
+  if (!empty($output_preprocess)) {
+    foreach ($output_preprocess as $values) {
+      list ($src, $prefix, $suffix) = $values;
+      $output .= $prefix . '<script type="text/javascript" src="'. $src .'"></script>' . $suffix . "\n";
+    }
+  }
+
+  foreach ($output_no_preprocess as $type => $list) {
+    if (!empty($list)) {
+      foreach ($list as $values) {
+        list ($src, $defer) = $values;
+        $output .= '<script type="text/javascript"' . ($defer ? ' defer="defer"' : '') . ' src="' . $src . "\"></script>\n";
+      }
+    }
+  }
+
+  if (!empty($setting_no_preprocess)) {
+    foreach ($setting_no_preprocess as $code) {
+      $output .= '<script type="text/javascript">' . $embed_prefix . $code . $embed_suffix . "</script>\n";
+    }
+  }
+
+  if (!empty($inline_no_preprocess)) {
+    foreach ($inline_no_preprocess as $values) {
+      list ($code, $defer) = $values;
+      $output .= '<script type="text/javascript"'. ($defer ? ' defer="defer"' : '') .'>' . $embed_prefix . $code . $embed_suffix . "</script>\n";
+    }
+  }
+
+  return $output;
+}
+
+/**
+ * Aggregate CSS/JS files, putting them in the files directory.
+ *
+ * @see drupal_build_js_cache
+ * @see drupal_build_css_cache
+ *
+ * @param $type
+ *   js or css
+ * @param $files
+ *   An array of JS files to aggregate and compress into one file.
+ * @param $counter
+ *   (optional) Counter value.
+ * @param $force
+ *   (optional) Rebuild even if file already exists.
+ * @param $md5
+ *   (optional) Bundle's machine name.
+ * @return
+ *   array with the filepath as the key and prefix and suffix in another array.
+ */
+function advagg_css_js_file_builder($type, $files, $counter = '', $force = FALSE, $md5 = '') {
+  $data = '';
+  list($css_path, $js_path) = advagg_get_root_files_dir();
+  if ($type == 'js') {
+    $file_type_path = $js_path;
+  }
+  if ($type == 'css') {
+    $file_type_path = $css_path;
+  }
+
+  // Send $files, get filename back
+  $filenames = advagg_get_filename($files, $type, $counter, $md5);
+  $output = array();
+  $locks = array();
+  foreach ($filenames as $info) {
+    $filename = $info['filename'];
+    $files = $info['files'];
+    $bundle_md5 = $info['bundle_md5'];
+    $prefix = '';
+    $suffix = '';
+    $filepath = $file_type_path .'/'. $filename;
+
+    // Invoke hook_advagg_js_extra_alter() or hook_advagg_css_extra_alter to
+    // give installed modules a chance to modify the prefix or suffix for a
+    // given filename.
+    $values = array($filename, $bundle_md5, $prefix, $suffix);
+    drupal_alter('advagg_' . $type . '_extra', $values);
+    list($filename, $bundle_md5, $prefix, $suffix) = $values;
+
+    // Check that the file exists & filesize is not zero
+    $built = advagg_bundle_built($filepath);
+
+    if (!$built || $force) {
+      // Generate on request?
+      if (variable_get('advagg_async_generation', ADVAGG_ASYNC_GENERATION)) {
+        // Request file.
+        $ip = variable_get('advagg_server_addr', FALSE);
+        if (empty($ip)) {
+          $ip = empty($_SERVER['SERVER_ADDR']) ? '127.0.0.1' : $_SERVER['SERVER_ADDR'];
+        }
+        $url = 'http://' . $ip . $base_path . $filepath;
+        $headers = array(
+          'Host' => $_SERVER['HTTP_HOST'],
+        );
+
+        // Set timeout.
+        $socket_timeout = ini_set('default_socket_timeout', variable_get('advagg_socket_timeout', ADVAGG_SOCKET_TIMEOUT));
+        drupal_http_request($url, $headers, 'GET');
+        ini_set('default_socket_timeout', $socket_timeout);
+
+        // Return filepath.
+        $output[$filepath] = array('prefix' => $prefix, 'suffix' => $suffix);
+        continue;
+      }
+
+      // Only generate once.
+      $lock_name = 'advagg_' . $filename;
+      if (!lock_acquire($lock_name)) {
+        $locks[] = $lock_name;
+        $output[$filepath] = array('prefix' => $prefix, 'suffix' => $suffix);
+        continue;
+      }
+
+      if ($type == 'css') {
+        $data = advagg_build_css_bundle($files);
+      }
+      elseif ($type == 'js') {
+        $data = advagg_build_js_bundle($files);
+      }
+      // Invoke hook_advagg_js_alter() or hook_advagg_css_alter to give
+      // installed modules a chance to modify the data in the bundle if
+      // necessary.
+      drupal_alter('advagg_' . $type, $data, $files, $bundle_md5);
+
+      // Create the advagg_$type/ within the files folder.
+      file_check_directory($file_type_path, FILE_CREATE_DIRECTORY);
+
+      // Write file. default function called: advagg_file_saver
+      $function = variable_get('advagg_file_save_function', ADVAGG_FILE_SAVE_FUNCTION);
+      $good = $function($data, $filepath, $force, $type);
+      if (!$good) {
+        $output[$filepath] = FALSE;
+        continue;
+      }
+
+      // Release lock.
+      lock_release($lock_name);
+    }
+    $output[$filepath] = array('prefix' => $prefix, 'suffix' => $suffix);
+  }
+
+  // Wait for all locks before returning.
+  if (!empty($locks)) {
+    foreach ($locks as $lock_name) {
+      lock_wait($lock_name);
+    }
+  }
+
+  return $output;
+}
+
+/**
+ * Given a list of files, grab their contents and glue it into one big string.
+ *
+ * @param $files
+ *   array of filenames.
+ * @return
+ *   string containing all the files.
+ */
+function advagg_build_css_bundle($files) {
+  // Build aggregate CSS file.
+  foreach ($files as $file) {
+    $contents = drupal_load_stylesheet($file, TRUE);
+    // Return the path to where this CSS file originated from.
+    $base = base_path() . dirname($file) .'/';
+    _drupal_build_css_path(NULL, $base);
+    // Prefix all paths within this CSS file, ignoring external and absolute paths.
+    $data .= preg_replace_callback('/url\([\'"]?(?![a-z]+:|\/+)([^\'")]+)[\'"]?\)/i', '_drupal_build_css_path', $contents);
+  }
+
+  // Per the W3C specification at http://www.w3.org/TR/REC-CSS2/cascade.html#at-import,
+  // @import rules must proceed any other style, so we move those to the top.
+  $regexp = '/@import[^;]+;/i';
+  preg_match_all($regexp, $data, $matches);
+  $data = preg_replace($regexp, '', $data);
+  $data = implode('', $matches[0]) . $data;
+  return $data;
+}
+
+/**
+ * Given a list of files, grab their contents and glue it into one big string.
+ *
+ * @param $files
+ *   array of filenames.
+ * @return
+ *   string containing all the files.
+ */
+function advagg_build_js_bundle($files) {
+  if (empty($files)) {
+    return '';
+  }
+  // Build aggregate JS file.
+  foreach ($files as $file) {
+    // Append a ';' and a newline after each JS file to prevent them from running together.
+    if (file_exists($file)) {
+      $data .= file_get_contents($file) .";\n";
+    }
+  }
+  return $data;
+}
+
+/**
+ * Send out a fast 404 and exit.
+ */
+function advagg_missing_fast404($msg = '') {
+//   watchdog('x', str_replace('    ', '&nbsp;&nbsp;&nbsp;&nbsp;', nl2br(htmlentities(print_r($_SERVER, TRUE)))));
+
+  global $base_path;
+  if (!headers_sent()) {
+    header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+    header('X-AdvAgg: Failed Validation. ' . $msg);
+  }
+  print '<html>';
+  print '<head><title>404 Not Found</title></head>';
+  print '<body><h1>Not Found</h1>';
+  print '<p>The requested URL was not found on this server.</p>';
+  print '<p><a href="' . $base_path . '">Home</a></p>';
+  print '</body></html>';
+  exit();
+}
+
+/**
+ * Generate .htaccess rules and place them in advagg dir
+ *
+ * @param $dest
+ *   destination of the file that just got saved.
+ * @param $force
+ *   force recreate the .htaccess file.
+ */
+function advagg_htaccess_check_generate($dest, $force = FALSE) {
+  global $base_path;
+  if (!$force && variable_get('advagg_dir_htaccess', ADVAGG_DIR_HTACCESS) == FALSE) {
+    return TRUE;
+  }
+
+  $dir = dirname($dest);
+  $htaccess_file = $dir . '/.htaccess';
+  if (!$force && file_exists($htaccess_file)) {
+    return TRUE;
+  }
+
+  list($css_path, $js_path) = advagg_get_root_files_dir();
+
+  $type = '';
+  if ($dir == $js_path) {
+    $ext = 'js';
+    $path = $js_path;
+    $type = 'text/javascript';
+  }
+  elseif ($dir == $css_path) {
+    $type = 'css';
+    $path = $css_path;
+    $type = 'text/css';
+  }
+  else {
+    return FALSE;
+  }
+
+  $data = "\n";
+  if (variable_get('advagg_gzip_compression', ADVAGG_GZIP_COMPRESSION)) {
+    $data .= "<IfModule mod_rewrite.c>\n";
+    $data .= "  RewriteEngine on\n";
+    $data .= "\n";
+    $data .= "  # Send 404's back to index.php\n";
+    $data .= "  RewriteCond %{REQUEST_FILENAME} !-s\n";
+    $data .= "  RewriteRule ^(.*)$ ${base_path}index.php?q=$path/$1 [L]\n";
+    $data .= "\n";
+    $data .= "  # Rules to correctly serve gzip compressed $ext files.\n";
+    $data .= "  # Requires both mod_rewrite and mod_headers to be enabled.\n";
+    $data .= "  <IfModule mod_headers.c>\n";
+    $data .= "    # Serve gzip compressed $ext files if they exist and client accepts gzip.\n";
+    $data .= "    RewriteCond %{HTTP:Accept-encoding} gzip\n";
+    $data .= "    RewriteCond %{REQUEST_FILENAME}\.gz -s\n";
+    $data .= "    RewriteRule ^(.*)\.$ext$ $1\.$ext\.gz [QSA]\n";
+    $data .= "\n";
+    $data .= "    # Serve correct content types, and prevent mod_deflate double gzip.\n";
+    $data .= "    RewriteRule \.$ext\.gz$ - [T=$type,E=no-gzip:1]\n";
+    $data .= "\n";
+    $data .= "    <FilesMatch \"\.$ext\.gz$\">\n";
+    $data .= "      # Serve correct encoding type.\n";
+    $data .= "      Header append Content-Encoding gzip\n";
+    $data .= "      # Force proxies to cache gzipped & non-gzipped $ext files separately.\n";
+    $data .= "      Header append Vary Accept-Encoding\n";
+    $data .= "    </FilesMatch>\n";
+    $data .= "  </IfModule>\n";
+    $data .= "</IfModule>\n";
+    $data .= "\n";
+  }
+  $data .= "<FilesMatch \"^${ext}_[0-9a-f]{32}_.+\.$ext.*\">\n";
+  $data .= "  FileETag None\n";
+  $data .= "  <IfModule mod_expires.c>\n";
+  $data .= "    # Enable expirations.\n";
+  $data .= "    ExpiresActive On\n";
+  $data .= "\n";
+  $data .= "    # Cache all aggregated $ext files for 1 year after access (A).\n";
+  $data .= "    ExpiresDefault A31556926\n";
+  $data .= "  </IfModule>\n";
+  $data .= "  <IfModule mod_headers.c>\n";
+  $data .= "    # Unset unnecessary headers.\n";
+  $data .= "    Header unset ETag\n";
+  $data .= "    Header unset Last-Modified\n";
+  $data .= "    Header unset Pragma\n";
+  $data .= "\n";
+  $data .= "    # Make these files publicly cacheable.\n";
+  $data .= "    Header append Cache-Control \"public\"\n";
+  $data .= "  </IfModule>\n";
+  $data .= "</FilesMatch>\n";
+  $data .= "\n";
+
+  if (!file_save_data($data, $htaccess_file, FILE_EXISTS_REPLACE)) {
+    return FALSE;
+  }
+  return TRUE;
+}

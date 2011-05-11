@@ -1,0 +1,13 @@
+; $Id: piwik_reports.info,v 1.1.2.2 2008/09/14 15:52:20 hass Exp $
+name = Piwik - Reports
+description = Adds Piwik reports to Drupal reports section.
+core = 6.x
+package = Statistics
+dependencies[] = piwik
+
+; Information added by drupal.org packaging script on 2009-06-16
+version = "6.x-1.1"
+core = "6.x"
+project = "piwik"
+datestamp = "1245151537"
+

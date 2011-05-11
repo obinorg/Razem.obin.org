@@ -1,0 +1,12 @@
+name = Compress Javascript
+description = Compress Javascript with a 3rd party compressor.
+package = Advanced CSS/JS Aggregation
+core = 6.x
+dependencies[] = advagg
+
+; Information added by drupal.org packaging script on 2011-03-21
+version = "6.x-1.x-dev"
+core = "6.x"
+project = "advagg"
+datestamp = "1300708882"
+

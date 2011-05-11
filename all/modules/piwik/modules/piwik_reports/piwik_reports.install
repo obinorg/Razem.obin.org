@@ -1,0 +1,18 @@
+<?php
+// $Id: piwik_reports.install,v 1.1.2.5 2009/03/14 23:38:29 hass Exp $
+
+/**
+ * @file
+ * Installation file for Piwik - Reports module.
+ */
+
+/**
+ * Remove dead global period setting, moved into user $_SESSION['piwik_reports_period'] value.
+ */
+function piwik_reports_update_6000() {
+  $ret = array();
+
+  variable_del('piwik_reports_period');
+
+  return $ret;
+}

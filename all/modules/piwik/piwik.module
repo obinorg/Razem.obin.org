@@ -1,0 +1,328 @@
+<?php
+// $Id: piwik.module,v 1.1.2.22 2009/06/15 19:59:21 hass Exp $
+
+/**
+ * @file
+ * Drupal Module: Piwik
+ * Adds the required Javascript to the bottom of all your Drupal pages
+ * to allow tracking by the Piwik statistics package.
+ *
+ * @author: Alexander Hass <www.hass.de>
+ */
+
+define('PK_TRACKFILES_EXTENSIONS', '7z|aac|avi|csv|doc|exe|flv|gif|gz|jpe?g|js|mp(3|4|e?g)|mov|pdf|phps|png|ppt|rar|sit|tar|torrent|txt|wma|wmv|xls|xml|zip');
+
+function piwik_help($path, $arg) {
+  switch ($path) {
+    case 'admin/settings/piwik':
+      return t('<a href="@pk_url">Piwik - Web analytics</a> is an open source (GPL license) web analytics software. It gives interesting reports on your website visitors, your popular pages, the search engines keywords they used, the language they speak... and so much more. Piwik aims to be an open source alternative to Google Analytics.', array('@pk_url' => 'http://www.piwik.org/'));
+  }
+}
+
+function piwik_perm() {
+  return array('administer piwik', 'opt-in or out of tracking', 'use PHP for tracking visibility');
+}
+
+function piwik_menu() {
+  $items['admin/settings/piwik'] = array(
+    'title' => 'Piwik',
+    'description' => 'Configure the settings used to generate your Piwik tracking code.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('piwik_admin_settings_form'),
+    'access arguments' => array('administer piwik'),
+    'file' => 'piwik.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+function piwik_init() {
+  global $user;
+
+  $id = variable_get('piwik_site_id', '');
+
+  // 1. Check if the piwik account number has a value.
+  // 2. Track page views based on visibility value.
+  // 3. Check if we should track the currently active user's role.
+  if (!empty($id) && _piwik_visibility_pages() && _piwik_visibility_user($user)) {
+
+    $url_http = variable_get('piwik_url_http', '');
+    $url_https = variable_get('piwik_url_https', '');
+    $scope = variable_get('piwik_js_scope', 'footer');
+
+    // Should a local cached copy of piwik.js be used?
+    $script = 'var pkBaseURL = (("https:" == document.location.protocol) ? "'. check_url($url_https) .'" : "'. check_url($url_http) .'");';
+    if (variable_get('piwik_cache', 0) && (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC) && $source = _piwik_cache($url_http .'/piwik.js')) {
+      drupal_add_js($source, 'module', $scope);
+    }
+    else {
+      $script .= 'document.write(unescape("%3Cscript src=\'" + pkBaseURL + "/piwik.js\' type=\'text/javascript\'%3E%3C/script%3E"));';
+    }
+    drupal_add_js($script, 'inline', $scope);
+
+  }
+}
+
+/**
+ * Implementation of hook_footer() to insert Javascript at the end of the page.
+ */
+function piwik_footer($main = 0) {
+  global $user;
+
+  $id = variable_get('piwik_site_id', '');
+
+  if (!empty($id) && _piwik_visibility_pages() && _piwik_visibility_user($user)) {
+
+    $piwik_vars = array();
+
+    // If this node is a translation of another node, pass the original
+    // node instead.
+    if (module_exists('translation') && variable_get('piwik_translation_set', 0)) {
+      // Check we have a node object, it supports translation, and its
+      // translated node ID (tnid) doesn't match its own node ID.
+      $node = menu_get_object();
+      if ($node && translation_supported_type($node->type) && isset($node->tnid) && ($node->tnid != $node->nid)) {
+        $source_node = node_load($node->tnid);
+        $languages = language_list();
+        $url_custom = drupal_to_js(url('node/'. $source_node->nid, array('language' => $languages[$source_node->language])));
+      }
+    }
+
+    // Track access denied (403) and file not found (404) pages.
+    if (function_exists('drupal_get_headers')) {
+      $headers = drupal_get_headers();
+      if (strstr($headers, 'HTTP/1.1 403 Forbidden')) {
+        $url_custom = '"/403/URL=" + document.location.pathname + document.location.search + "/From=" + document.referrer';
+      }
+      elseif (strstr($headers, 'HTTP/1.1 404 Not Found')) {
+        $url_custom = '"/404/URL=" + document.location.pathname + document.location.search + "/From=" + document.referrer';
+      }
+    }
+
+    // Add any custom code snippets if specified.
+    $codesnippet_before = variable_get('piwik_codesnippet_before', '');
+    $codesnippet_after = variable_get('piwik_codesnippet_after', '');
+
+    // Build settings code. See http://piwik.org/docs/javascript-tracking/
+    $script = 'try {';
+    $script .= 'var piwikTracker = Piwik.getTracker(pkBaseURL + "/piwik.php", '. drupal_to_js(variable_get('piwik_site_id', '')) .');';
+
+    if (!empty($url_custom)) {
+      $script .= 'piwikTracker.setDocumentTitle('. $url_custom .');';
+    }
+
+    if ((variable_get('piwik_track', 1)) && ($trackfiles_extensions = variable_get('piwik_trackfiles_extensions', PK_TRACKFILES_EXTENSIONS))) {
+      $script .= 'piwikTracker.setDownloadExtensions('. drupal_to_js($trackfiles_extensions) .');';
+    }
+
+    // Add custom variables.
+    if (!empty($piwik_vars)) {
+      $piwik_vars_fields = array();
+      foreach ($piwik_vars as $name => $value) {
+        $piwik_vars_fields[] = drupal_to_js($name) .':'. drupal_to_js($value);
+      }
+      if (count($piwik_vars_fields) > 0) {
+        $script .= 'piwikTracker.setCustomVars({ '. implode(', ', $piwik_vars_fields) .' });';
+      }
+    }
+    if (!empty($codesnippet_before)) {
+      $script .= $codesnippet_before;
+    }
+    $script .= 'piwikTracker.trackPageView();';
+
+    // Add link tracking.
+    if (variable_get('piwik_track', 1)) {
+      $script .= 'piwikTracker.enableLinkTracking();';
+    }
+    if (!empty($codesnippet_after)) {
+      $script .= $codesnippet_after;
+    }
+    $script .= '} catch(err) {}';
+
+    drupal_add_js($script, 'inline', 'footer');
+  }
+}
+
+/**
+ * Implementation of hook_user().
+ *
+ * Allow users to decide if tracking code will be added to pages or not.
+ */
+function piwik_user($type, $edit, &$account, $category = NULL) {
+  switch ($type) {
+    case 'form':
+      if ($category == 'account' && user_access('opt-in or out of tracking') && ($custom = variable_get('piwik_custom', 0)) != 0 && _piwik_visibility_roles($account)) {
+        $form['piwik'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('Piwik configuration'),
+          '#weight' => 3,
+          '#collapsible' => TRUE,
+          '#tree' => TRUE
+        );
+
+        switch ($custom) {
+          case 1:
+            $description = t('Users are tracked by default, but you are able to opt out.');
+            break;
+
+          case 2:
+            $description = t('Users are <em>not</em> tracked by default, but you are able to opt in.');
+            break;
+        }
+
+        $form['piwik']['custom'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Enable user tracking'),
+          '#description' => $description,
+          '#default_value' => isset($account->piwik['custom']) ? $account->piwik['custom'] : ($custom == 1)
+        );
+
+        return $form;
+      }
+      break;
+
+  }
+}
+
+/**
+ * Implementation of hook_cron().
+ */
+function piwik_cron() {
+  // Regenerate the piwik.js every day.
+  if (time() - variable_get('piwik_last_cache', 0) >= 86400) {
+    file_delete(file_directory_path() .'/piwik/piwik.js');
+
+    // Clear aggregated JS files.
+    if (variable_get('preprocess_js', 0)) {
+      drupal_clear_js_cache();
+    }
+
+    variable_set('piwik_last_cache', time());
+  }
+}
+
+/**
+ * Download and cache the piwik.js file locally.
+ *
+ * @param $location
+ *   The full URL to the external javascript file.
+ * @return mixed
+ *   The path to the local javascript file on success, boolean FALSE on failure.
+ */
+function _piwik_cache($location) {
+  $directory = file_directory_path() .'/piwik';
+  $file_destination = $directory .'/'. basename($location);
+  if (!file_exists($file_destination)) {
+    $result = drupal_http_request($location);
+    if ($result->code == 200) {
+      // Check that the files directory is writable
+      if (file_check_directory($directory, FILE_CREATE_DIRECTORY)) {
+        return file_save_data($result->data, $directory .'/'. basename($location), FILE_EXISTS_REPLACE);
+      }
+    }
+  }
+  else {
+    return $file_destination;
+  }
+}
+
+/**
+ * Tracking visibility check for an user object.
+ *
+ * @param $account
+ *   A user object containing an array of roles to check.
+ * @return boolean
+ *   A decision on if the current user is being tracked by Piwik.
+ */
+function _piwik_visibility_user($account) {
+
+  $enabled = FALSE;
+
+  // Is current user a member of a role that should be tracked?
+  if (_piwik_visibility_roles($account)) {
+
+    // Use the user's block visibility setting, if necessary.
+    if (($custom = variable_get('piwik_custom', 0)) != 0) {
+      if ($account->uid && isset($account->piwik['custom'])) {
+        $enabled = $account->piwik['custom'];
+      }
+      else {
+        $enabled = ($custom == 1);
+      }
+    }
+    else {
+      $enabled = TRUE;
+    }
+
+  }
+
+  return $enabled;
+}
+
+/**
+ * Based on visibility setting this function returns TRUE if GA code should
+ * be added for the current role and otherwise FALSE.
+ */
+function _piwik_visibility_roles($account) {
+
+  $enabled = FALSE;
+  $roles = variable_get('piwik_roles', array());
+
+  if (array_sum($roles) > 0) {
+    // One or more roles are selected for tracking.
+    foreach (array_keys($account->roles) as $rid) {
+      // Is the current user a member of one role enabled for tracking?
+      if (isset($roles[$rid]) && $rid == $roles[$rid]) {
+        // Current user is a member of a role that should be tracked.
+        $enabled = TRUE;
+        break;
+      }
+    }
+  }
+  else {
+    // No role is selected for tracking, therefor all roles should be tracked.
+    $enabled = TRUE;
+  }
+
+  return $enabled;
+}
+
+/**
+ * Based on visibility setting this function returns TRUE if GA code should
+ * be added to the current page and otherwise FALSE.
+ */
+function _piwik_visibility_pages() {
+  static $page_match;
+
+  // Cache visibility setting in hook_init for hook_footer.
+  if (!isset($page_match)) {
+
+    $visibility = variable_get('piwik_visibility', 0);
+    $pages = variable_get('piwik_pages', '');
+
+    // Match path if necessary.
+    if (!empty($pages)) {
+      if ($visibility < 2) {
+        $path = drupal_get_path_alias($_GET['q']);
+        // Compare with the internal and path alias (if any).
+        $page_match = drupal_match_path($path, $pages);
+        if ($path != $_GET['q']) {
+          $page_match = $page_match || drupal_match_path($_GET['q'], $pages);
+        }
+        // When $visibility has a value of 0, the block is displayed on
+        // all pages except those listed in $pages. When set to 1, it
+        // is displayed only on those pages listed in $pages.
+        $page_match = !($visibility xor $page_match);
+      }
+      else {
+        $page_match = drupal_eval($pages);
+      }
+    }
+    else {
+      $page_match = TRUE;
+    }
+
+  }
+  return $page_match;
+}

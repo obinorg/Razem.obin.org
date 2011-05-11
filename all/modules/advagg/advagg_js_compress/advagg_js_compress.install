@@ -1,0 +1,74 @@
+<?php
+
+/**
+ * @file
+ * Handles AdvAgg JS compress installation and upgrade tasks.
+ */
+
+/**
+ * Implementation of hook_enable().
+ */
+function advagg_js_compress_enable() {
+  // Check runtime requirements
+  register_shutdown_function('advagg_js_compress_requirements', 'runtime');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function advagg_js_compress_uninstall() {
+  // Remove variables.
+  variable_del('advagg_js_compress_callback');
+
+}
+
+/**
+ * Implementation of hook_requirements().
+ */
+function advagg_js_compress_requirements($phase) {
+  $requirements = array();
+  // Ensure translations don't break at install time
+  $t = get_t();
+
+  // Report Drupal version
+  if ($phase == 'runtime') {
+    $compressible = advagg_js_compress_check_callback();
+    $advagg_js_compress_callback = variable_get('advagg_js_compress_callback', ADVAGG_JS_COMPRESS_CALLBACK);
+    if (is_array($compressible)) {
+      $requirements['advagg_js_compress_callback'] = array(
+        'title'       => $t('AdvAgg JS Compress - Callback'),
+        'severity'    => REQUIREMENT_WARNING,
+        'value'       => $t('The callback for testing if a JS file is compressable is not working.'),
+        'description' => $t('As a result if jsmin+ encounters a file that it cannot compress, it will kill that PHP process.'),
+      );
+      if ($advagg_js_compress_callback != FALSE) {
+        variable_set('advagg_js_compress_callback', FALSE);
+      }
+    }
+    else {
+      $requirements['advagg_js_compress_callback'] = array(
+        'title'       => $t('AdvAgg JS Compress - Callback'),
+        'severity'    => REQUIREMENT_OK,
+        'value'       => $t('The callback is working correctly.'),
+      );
+      if ($advagg_js_compress_callback == FALSE) {
+        variable_set('advagg_js_compress_callback', TRUE);
+      }
+    }
+  }
+  return $requirements;
+}
+
+/**
+ * Check to see if the CSS/JS generator is working.
+ */
+function advagg_js_compress_check_callback() {
+  $filename = drupal_get_path('module', 'advagg_js_compress') . '/jquery.form.js';
+  $files_to_test = array();
+  $files_to_test[] = array(
+    'md5' => 'test',
+    'filename' => $filename,
+  );
+  $compressible = advagg_js_compress_test_compression($files_to_test);
+  return $compressible;
+}

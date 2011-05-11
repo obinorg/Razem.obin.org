@@ -1,0 +1,10 @@
+.view-id-releaselogs .views-field .crayon-swatch { float: left;}
+#features-menu li a.icon-release-logs span.icon {
+background:url(images/rslog40x40.png) no-repeat;
+}
+.feature .feature-release-logs {
+background:transparent url(images/rslog20x20.png) no-repeat;
+}
+.feature-release-logs {
+background:url(images/rslog20x20.png) no-repeat !important;
+}

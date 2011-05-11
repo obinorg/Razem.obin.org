@@ -1,0 +1,14 @@
+; $Id: uploadpath.info,v 1.1.2.1.2.1 2008/09/08 08:20:02 davidwhthomas Exp $
+name = Upload path
+description = Organize uploaded files according to admin-specified rules.
+core = 6.x
+dependencies[] = upload
+dependencies[] = token
+
+
+; Information added by drupal.org packaging script on 2008-09-09
+version = "6.x-1.0"
+core = "6.x"
+project = "uploadpath"
+datestamp = "1220946320"
+

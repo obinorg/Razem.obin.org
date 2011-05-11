@@ -1,0 +1,12 @@
+; $Id: piwik.info,v 1.1.2.4 2008/09/14 15:52:20 hass Exp $
+name = "Piwik - Web analytics"
+description = Adds Piwik javascript tracking code to all your site's pages.
+core = 6.x
+package = Statistics
+
+; Information added by drupal.org packaging script on 2009-06-16
+version = "6.x-1.1"
+core = "6.x"
+project = "piwik"
+datestamp = "1245151537"
+

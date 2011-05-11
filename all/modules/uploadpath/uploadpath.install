@@ -1,0 +1,17 @@
+<?php
+// $Id: uploadpath.install,v 1.1.2.1.2.1 2008/09/08 08:20:02 davidwhthomas Exp $
+
+/**
+ * @file
+ * Install file for Upload Path module.
+ */
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function uploadpath_uninstall() {
+  variable_del('uploadpath_prefix');
+  variable_del('uploadpath_clean_filenames');
+  variable_del('uploadpath_excluded_node_types');
+  db_query("DELETE FROM {variable} WHERE name LIKE '%s'", 'uploadpath%');
+}
